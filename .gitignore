@@ -1,2 +1,6 @@
 data.json
 .claude/settings.local.json
+tt.db
+__pycache__/
+*.pyc
+.env

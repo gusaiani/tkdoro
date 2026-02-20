@@ -39,6 +39,81 @@
       padding: 56px 24px 80px;
     }
 
+    /* ── Auth Screen ── */
+    #auth-screen {
+      width: 100%;
+      max-width: 400px;
+    }
+
+    .auth-logo {
+      color: var(--red);
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      margin-bottom: 40px;
+    }
+
+    .auth-field {
+      border-bottom: 2px solid var(--border);
+      margin-bottom: 16px;
+      transition: border-color 0.15s;
+    }
+
+    .auth-field:focus-within { border-bottom-color: var(--accent); }
+
+    .auth-field input {
+      width: 100%;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 16px;
+      padding: 8px 0 10px;
+      caret-color: var(--accent);
+    }
+
+    .auth-field input::placeholder { color: var(--dimmer); }
+
+    .auth-submit {
+      margin-top: 24px;
+      background: var(--accent);
+      color: var(--surface);
+      border: none;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      padding: 10px 24px;
+      cursor: pointer;
+      width: 100%;
+      transition: filter 0.15s;
+    }
+
+    .auth-submit:hover { filter: brightness(1.1); }
+
+    .auth-error {
+      margin-top: 12px;
+      font-size: 13px;
+      color: var(--red);
+      min-height: 20px;
+    }
+
+    .auth-toggle-btn {
+      display: block;
+      margin-top: 16px;
+      background: none;
+      border: none;
+      color: var(--dim);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      cursor: pointer;
+      padding: 0;
+      text-decoration: underline;
+    }
+
+    .auth-toggle-btn:hover { color: var(--text); }
+
+    /* ── App ── */
     #app {
       width: 100%;
       max-width: 760px;
@@ -76,6 +151,18 @@
     }
 
     .hd-running.visible { opacity: 1; }
+
+    .hd-logout {
+      background: none;
+      border: none;
+      color: var(--dimmer);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .hd-logout:hover { color: var(--dim); }
 
     /* ── Search bar ── */
     .search-row {
@@ -305,18 +392,33 @@
   </style>
 </head>
 <body>
-<div id="app">
+
+<div id="auth-screen" style="display:none">
+  <div class="auth-logo">tt</div>
+  <div class="auth-field">
+    <input id="auth-email" type="email" placeholder="email" autocomplete="email" spellcheck="false">
+  </div>
+  <div class="auth-field">
+    <input id="auth-password" type="password" placeholder="password" autocomplete="current-password">
+  </div>
+  <button class="auth-submit" id="auth-submit">sign in</button>
+  <div class="auth-error" id="auth-error"></div>
+  <button class="auth-toggle-btn" id="auth-toggle">no account? sign up</button>
+</div>
+
+<div id="app" style="display:none">
 
   <div class="hd">
     <span class="hd-logo">tt</span>
     <span class="hd-sep">/</span>
     <span class="hd-date" id="hd-date"></span>
     <span class="hd-running" id="hd-running">● recording</span>
+    <button class="hd-logout" id="hd-logout">logout</button>
   </div>
 
   <div class="search-row">
     <span class="search-prompt">&gt;</span>
-    <input id="search" type="text" placeholder="task name…" autocomplete="off" spellcheck="false" autofocus>
+    <input id="search" type="text" placeholder="task name…" autocomplete="off" spellcheck="false">
   </div>
   <div class="search-hint">
     <kbd>↵</kbd> start / stop &nbsp;·&nbsp;
@@ -337,21 +439,107 @@
 let data = { tasks: [] };
 
 async function load() {
+  const token = localStorage.getItem('tt_token');
+  if (!token) { showAuth(); return; }
   try {
-    const r = await fetch('/data');
+    const r = await fetch('/data', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (r.status === 401) { localStorage.removeItem('tt_token'); showAuth(); return; }
     data = await r.json();
   } catch { data = { tasks: [] }; }
+  showTracker();
   render();
   ensureTick();
 }
 
 function persist() {
+  const token = localStorage.getItem('tt_token');
+  if (!token) return;
   fetch('/data', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
     body: JSON.stringify(data)
-  });
+  }).then(r => {
+    if (r.status === 401) { localStorage.removeItem('tt_token'); showAuth(); }
+  }).catch(() => {});
 }
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+let authMode = 'login';
+
+function showAuth() {
+  document.getElementById('auth-screen').style.display = 'block';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('auth-error').textContent = '';
+  document.getElementById('auth-email').focus();
+}
+
+function showTracker() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  searchEl.focus();
+}
+
+document.getElementById('auth-toggle').addEventListener('click', () => {
+  authMode = authMode === 'login' ? 'signup' : 'login';
+  document.getElementById('auth-submit').textContent = authMode === 'login' ? 'sign in' : 'sign up';
+  document.getElementById('auth-toggle').textContent = authMode === 'login'
+    ? 'no account? sign up'
+    : 'have an account? sign in';
+  document.getElementById('auth-error').textContent = '';
+});
+
+async function submitAuth() {
+  const email    = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const errorEl  = document.getElementById('auth-error');
+  errorEl.textContent = '';
+  if (!email || !password) { errorEl.textContent = 'email and password required'; return; }
+  try {
+    const endpoint = authMode === 'login' ? '/auth/login' : '/auth/signup';
+    const r = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const body = await r.json();
+    if (!r.ok) { errorEl.textContent = body.detail || 'error'; return; }
+    localStorage.setItem('tt_token', body.token);
+    document.getElementById('auth-password').value = '';
+    data = { tasks: [] };
+    await load();
+  } catch {
+    errorEl.textContent = 'network error';
+  }
+}
+
+document.getElementById('auth-submit').addEventListener('click', submitAuth);
+
+document.getElementById('auth-email').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('auth-password').focus();
+});
+
+document.getElementById('auth-password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') submitAuth();
+});
+
+function logout() {
+  const cur = runningTask();
+  if (cur) {
+    cur.sessions.find(s => !s.end).end = Date.now();
+    persist();
+  }
+  if (ticker) { clearInterval(ticker); ticker = null; }
+  localStorage.removeItem('tt_token');
+  data = { tasks: [] };
+  showAuth();
+}
+
+document.getElementById('hd-logout').addEventListener('click', logout);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const todayStr = () => new Date().toISOString().slice(0,10);
@@ -615,7 +803,6 @@ listEl.addEventListener('click', e => {
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 load();
-searchEl.focus();
 </script>
 </body>
 </html>

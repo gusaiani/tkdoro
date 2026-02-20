@@ -4,17 +4,43 @@ A minimal, keyboard-driven time tracker inspired by Notational Velocity.
 
 ![tt screenshot](screenshot.png)
 
-## Requirements
+## Running locally
 
-- Python 3 (comes pre-installed on macOS)
-
-## Start
+Install dependencies and start the server:
 
 ```bash
-python3 server.py
+pip install -r requirements.txt
+uvicorn app:app --reload
 ```
 
-This starts a local server on port 5555 and opens the app in your browser automatically. If it doesn't open, navigate to [http://localhost:5555](http://localhost:5555).
+Navigate to [http://localhost:8000](http://localhost:8000). You'll be prompted to sign up on first run. Data is stored in `tt.db` in the project folder.
+
+## Deploying to Fly.io
+
+The app is designed to run on Fly.io's free tier — it hibernates when idle (zero machines running) and wakes on the first request.
+
+**1. Install the Fly CLI and log in**
+
+```bash
+curl -L https://fly.io/install.sh | sh
+fly auth login
+```
+
+**2. Create the app and provision a volume**
+
+```bash
+fly launch --name tt-<yourname> --region iad --no-deploy
+fly secrets set SECRET_KEY="$(openssl rand -hex 32)"
+fly volumes create tt_data --region iad --size 1
+```
+
+**3. Deploy**
+
+```bash
+fly deploy
+```
+
+The app will be available at `https://tt-<yourname>.fly.dev`. After any code change, redeploy with `fly deploy`.
 
 ## Usage
 
@@ -37,7 +63,11 @@ All data is stored in `data.json` in the project folder. It's plain JSON and saf
 ## Files
 
 ```
-index.html   — the app UI
-server.py    — local HTTP server (serves the app + reads/writes data.json)
-data.json    — your time tracking data (created on first use)
+index.html        — the app UI
+app.py            — FastAPI server (auth, data API, static files)
+requirements.txt  — Python dependencies
+Dockerfile        — container build for Fly.io
+fly.toml          — Fly.io configuration
+server.py         — original single-user local server (kept for reference)
+data.json         — original local data file (kept for reference)
 ```
