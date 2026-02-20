@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
@@ -32,22 +33,29 @@ app = FastAPI()
 
 
 def init_db():
-    with psycopg2.connect(DATABASE_URL) as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    id            SERIAL PRIMARY KEY,
-                    email         TEXT UNIQUE NOT NULL,
-                    password_hash TEXT NOT NULL,
-                    created_at    TIMESTAMPTZ DEFAULT NOW()
-                )
-            """)
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS user_data (
-                    user_id    INTEGER PRIMARY KEY REFERENCES users(id),
-                    tasks_json TEXT NOT NULL DEFAULT '{"tasks":[]}'
-                )
-            """)
+    for attempt in range(10):
+        try:
+            with psycopg2.connect(DATABASE_URL) as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS users (
+                            id            SERIAL PRIMARY KEY,
+                            email         TEXT UNIQUE NOT NULL,
+                            password_hash TEXT NOT NULL,
+                            created_at    TIMESTAMPTZ DEFAULT NOW()
+                        )
+                    """)
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS user_data (
+                            user_id    INTEGER PRIMARY KEY REFERENCES users(id),
+                            tasks_json TEXT NOT NULL DEFAULT '{"tasks":[]}'
+                        )
+                    """)
+            return
+        except psycopg2.OperationalError:
+            if attempt == 9:
+                raise
+            time.sleep(2 ** attempt)
 
 
 @app.on_event("startup")
