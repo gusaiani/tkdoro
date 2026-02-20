@@ -65,6 +65,7 @@ All data is stored in `data.json` in the project folder. It's plain JSON and saf
 ```
 index.html        — the app UI
 app.py            — FastAPI server (auth, data API, static files)
+schema.sql        — Postgres database schema
 requirements.txt  — Python dependencies
 Dockerfile        — container build for Fly.io
 fly.toml          — Fly.io configuration

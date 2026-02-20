@@ -453,9 +453,18 @@ async function load() {
   ensureTick();
 }
 
+const bc = new BroadcastChannel('tt');
+
+bc.onmessage = e => {
+  data = e.data;
+  render();
+  ensureTick();
+};
+
 function persist() {
   const token = localStorage.getItem('tt_token');
   if (!token) return;
+  bc.postMessage(data);
   fetch('/data', {
     method: 'POST',
     headers: {

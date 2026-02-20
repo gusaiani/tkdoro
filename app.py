@@ -1,18 +1,19 @@
 import json
 import os
-import sqlite3
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
+import bcrypt
+import psycopg2
+import psycopg2.extras
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-import bcrypt
 from pydantic import BaseModel
 
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-in-production")
-DB_PATH = os.getenv("DB_PATH", "tt.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost/tt")
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_DAYS = 30
 
@@ -26,23 +27,27 @@ def hash_password(password: str) -> str:
 def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode(), hashed.encode())
 
+
 app = FastAPI()
 
 
 def init_db():
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.executescript("""
-            CREATE TABLE IF NOT EXISTS users (
-                id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                email         TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS user_data (
-                user_id    INTEGER PRIMARY KEY REFERENCES users(id),
-                tasks_json TEXT NOT NULL DEFAULT '{"tasks":[]}'
-            );
-        """)
+    with psycopg2.connect(DATABASE_URL) as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id            SERIAL PRIMARY KEY,
+                    email         TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    created_at    TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS user_data (
+                    user_id    INTEGER PRIMARY KEY REFERENCES users(id),
+                    tasks_json TEXT NOT NULL DEFAULT '{"tasks":[]}'
+                )
+            """)
 
 
 @app.on_event("startup")
@@ -51,10 +56,10 @@ def startup():
 
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
     try:
-        yield conn
+        cur = conn.cursor()
+        yield cur
         conn.commit()
     finally:
         conn.close()
@@ -84,22 +89,23 @@ class AuthRequest(BaseModel):
 
 
 @app.post("/auth/signup")
-def signup(req: AuthRequest, db: Annotated[sqlite3.Connection, Depends(get_db)]):
-    existing = db.execute("SELECT id FROM users WHERE email = ?", (req.email,)).fetchone()
-    if existing:
+def signup(req: AuthRequest, db: Annotated[psycopg2.extensions.cursor, Depends(get_db)]):
+    db.execute("SELECT id FROM users WHERE email = %s", (req.email,))
+    if db.fetchone():
         raise HTTPException(status_code=409, detail="Email already registered")
     hashed = hash_password(req.password)
-    cursor = db.execute(
-        "INSERT INTO users (email, password_hash) VALUES (?, ?)", (req.email, hashed)
+    db.execute(
+        "INSERT INTO users (email, password_hash) VALUES (%s, %s) RETURNING id",
+        (req.email, hashed),
     )
-    return {"token": make_token(cursor.lastrowid)}
+    user_id = db.fetchone()["id"]
+    return {"token": make_token(user_id)}
 
 
 @app.post("/auth/login")
-def login(req: AuthRequest, db: Annotated[sqlite3.Connection, Depends(get_db)]):
-    row = db.execute(
-        "SELECT id, password_hash FROM users WHERE email = ?", (req.email,)
-    ).fetchone()
+def login(req: AuthRequest, db: Annotated[psycopg2.extensions.cursor, Depends(get_db)]):
+    db.execute("SELECT id, password_hash FROM users WHERE email = %s", (req.email,))
+    row = db.fetchone()
     if not row or not verify_password(req.password, row["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     return {"token": make_token(row["id"])}
@@ -108,11 +114,10 @@ def login(req: AuthRequest, db: Annotated[sqlite3.Connection, Depends(get_db)]):
 @app.get("/data")
 def get_data(
     user_id: Annotated[int, Depends(current_user_id)],
-    db: Annotated[sqlite3.Connection, Depends(get_db)],
+    db: Annotated[psycopg2.extensions.cursor, Depends(get_db)],
 ):
-    row = db.execute(
-        "SELECT tasks_json FROM user_data WHERE user_id = ?", (user_id,)
-    ).fetchone()
+    db.execute("SELECT tasks_json FROM user_data WHERE user_id = %s", (user_id,))
+    row = db.fetchone()
     tasks_json = row["tasks_json"] if row else '{"tasks":[]}'
     return JSONResponse(content=json.loads(tasks_json))
 
@@ -121,12 +126,12 @@ def get_data(
 async def post_data(
     request: Request,
     user_id: Annotated[int, Depends(current_user_id)],
-    db: Annotated[sqlite3.Connection, Depends(get_db)],
+    db: Annotated[psycopg2.extensions.cursor, Depends(get_db)],
 ):
     body = await request.body()
     db.execute(
-        "INSERT INTO user_data (user_id, tasks_json) VALUES (?, ?) "
-        "ON CONFLICT(user_id) DO UPDATE SET tasks_json = excluded.tasks_json",
+        "INSERT INTO user_data (user_id, tasks_json) VALUES (%s, %s) "
+        "ON CONFLICT (user_id) DO UPDATE SET tasks_json = EXCLUDED.tasks_json",
         (user_id, body.decode()),
     )
     return Response(status_code=204)
