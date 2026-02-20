@@ -2,6 +2,8 @@
 
 A minimal, keyboard-driven time tracker inspired by Notational Velocity.
 
+![tt screenshot](screenshot.png)
+
 ## Requirements
 
 - Python 3 (comes pre-installed on macOS)
