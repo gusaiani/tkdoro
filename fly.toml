@@ -8,10 +8,6 @@ primary_region = 'iad'
 
 [build]
 
-[[mounts]]
-  source = 'tt_data'
-  destination = '/data'
-
 [http_service]
   internal_port = 8080
   force_https = true
