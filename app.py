@@ -8,7 +8,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 from pydantic import BaseModel
 
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-in-production")
@@ -16,8 +16,15 @@ DB_PATH = os.getenv("DB_PATH", "tt.db")
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_DAYS = 30
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 bearer = HTTPBearer()
+
+
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+
+def verify_password(password: str, hashed: str) -> bool:
+    return bcrypt.checkpw(password.encode(), hashed.encode())
 
 app = FastAPI()
 
@@ -81,7 +88,7 @@ def signup(req: AuthRequest, db: Annotated[sqlite3.Connection, Depends(get_db)])
     existing = db.execute("SELECT id FROM users WHERE email = ?", (req.email,)).fetchone()
     if existing:
         raise HTTPException(status_code=409, detail="Email already registered")
-    hashed = pwd_context.hash(req.password)
+    hashed = hash_password(req.password)
     cursor = db.execute(
         "INSERT INTO users (email, password_hash) VALUES (?, ?)", (req.email, hashed)
     )
@@ -93,7 +100,7 @@ def login(req: AuthRequest, db: Annotated[sqlite3.Connection, Depends(get_db)]):
     row = db.execute(
         "SELECT id, password_hash FROM users WHERE email = ?", (req.email,)
     ).fetchone()
-    if not row or not pwd_context.verify(req.password, row["password_hash"]):
+    if not row or not verify_password(req.password, row["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     return {"token": make_token(row["id"])}
 
