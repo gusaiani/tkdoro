@@ -1,4 +1,4 @@
-# tt — time tracker
+# AI Time Tracker
 
 A minimal, keyboard-driven time tracker inspired by Notational Velocity.
 
