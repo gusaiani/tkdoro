@@ -153,6 +153,16 @@ def favicon():
     return FileResponse("favicon.svg", media_type="image/svg+xml")
 
 
+@app.get("/favicon-local.svg")
+def favicon_local():
+    return FileResponse("favicon-local.svg", media_type="image/svg+xml")
+
+
+@app.get("/favicon-local.svg")
+def favicon_local():
+    return FileResponse("favicon-local.svg", media_type="image/svg+xml")
+
+
 @app.get("/")
 def root():
     return FileResponse("index.html")
