@@ -12,6 +12,7 @@ import psycopg2
 import psycopg2.extras
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel
@@ -33,6 +34,7 @@ def verify_password(password: str, hashed: str) -> bool:
 
 
 app = FastAPI()
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 def init_db():
