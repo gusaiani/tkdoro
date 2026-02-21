@@ -6,18 +6,47 @@ A minimal, keyboard-driven time tracker inspired by Notational Velocity.
 
 ## Running locally
 
-Install dependencies and start the server:
+**Prerequisites:** [Postgres.app](https://postgresapp.com) running on port 5432.
+
+Create the database (one-time):
 
 ```bash
-pip install -r requirements.txt
+createdb tt
+```
+
+Copy the environment template and start the server:
+
+```bash
+cp .env.example .env
 uvicorn app:app --reload
 ```
 
-Navigate to [http://localhost:8000](http://localhost:8000). You'll be prompted to sign up on first run. Data is stored in `tt.db` in the project folder.
+Navigate to [http://localhost:8000](http://localhost:8000). You'll be prompted to sign up on first run.
+
+The `.env` file is gitignored. `DATABASE_URL` and `SECRET_KEY` are loaded from it automatically on startup.
+
+## Testing
+
+Create the test database (one-time):
+
+```bash
+createdb tt_test
+```
+
+Install dev dependencies and run the suite:
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+Tests use transaction-per-test rollback for fast, isolated runs against a real Postgres instance. No mocking of the database layer.
+
+CI runs automatically on every push and pull request via GitHub Actions.
 
 ## Deploying to Fly.io
 
-The app is designed to run on Fly.io's free tier — it hibernates when idle (zero machines running) and wakes on the first request.
+The app is designed to run on Fly.io's free tier — it hibernates when idle and wakes on the first request.
 
 **1. Install the Fly CLI and log in**
 
@@ -26,12 +55,13 @@ curl -L https://fly.io/install.sh | sh
 fly auth login
 ```
 
-**2. Create the app and provision a volume**
+**2. Create the app and provision a Postgres database**
 
 ```bash
 fly launch --name tt-<yourname> --region iad --no-deploy
+fly postgres create --name tt-<yourname>-db
+fly postgres attach tt-<yourname>-db
 fly secrets set SECRET_KEY="$(openssl rand -hex 32)"
-fly volumes create tt_data --region iad --size 1
 ```
 
 **3. Deploy**
@@ -40,7 +70,7 @@ fly volumes create tt_data --region iad --size 1
 fly deploy
 ```
 
-The app will be available at `https://tt-<yourname>.fly.dev`. After any code change, redeploy with `fly deploy`.
+The app will be available at `https://tt-<yourname>.fly.dev`. Redeploy after code changes with `fly deploy`.
 
 ## Usage
 
@@ -58,17 +88,17 @@ Only one task runs at a time — starting a new one automatically stops the curr
 
 ## Data
 
-All data is stored in `data.json` in the project folder. It's plain JSON and safe to edit by hand, back up, or put in version control.
+All task data is stored per-user in a Postgres database. Locally this is the `tt` database on your Postgres.app instance. In production it's the Fly.io Postgres cluster attached to the app.
 
 ## Files
 
 ```
-index.html        — the app UI
-app.py            — FastAPI server (auth, data API, static files)
-schema.sql        — Postgres database schema
-requirements.txt  — Python dependencies
-Dockerfile        — container build for Fly.io
-fly.toml          — Fly.io configuration
-server.py         — original single-user local server (kept for reference)
-data.json         — original local data file (kept for reference)
+index.html            — the app UI
+app.py                — FastAPI server (auth, data API, static files)
+requirements.txt      — Python dependencies
+requirements-dev.txt  — dev/test dependencies (pytest, httpx)
+.env.example          — environment variable template (copy to .env for local dev)
+tests/                — test suite
+Dockerfile            — container build for Fly.io
+fly.toml              — Fly.io configuration
 ```
