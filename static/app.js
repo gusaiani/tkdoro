@@ -130,6 +130,18 @@ function fmtClock(ts) {
   return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
 
+function toTimeInput(ts) {
+  const d = new Date(ts);
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+function fromTimeInput(timeStr, originalTs) {
+  const [h, m] = timeStr.split(':').map(Number);
+  const d = new Date(originalTs);
+  d.setHours(h, m, 0, 0);
+  return d.getTime();
+}
+
 function esc(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
@@ -263,7 +275,8 @@ function render() {
         ${todaySess.map(s => {
           const live = !s.end;
           const dur  = (s.end ?? Date.now()) - s.start;
-          return `<div class="sl-entry${live ? ' live' : ''}">
+          return `<div class="sl-entry${live ? ' live' : ' editable'}"
+              data-task-id="${task.id}" data-session-start="${s.start}">
             <span class="sl-range">${fmtClock(s.start)} – ${live ? 'now' : fmtClock(s.end)}</span>
             <span class="sl-dur"${live ? ` data-live-range="${s.start}"` : ''}>${fmt(dur)}</span>
           </div>`;
@@ -350,8 +363,60 @@ searchEl.addEventListener('keydown', e => {
   }
 });
 
+// ── Inline session editing ─────────────────────────────────────────────────────
+function beginEditSession(entry, taskId, sessionStart) {
+  const task = data.tasks.find(t => t.id === taskId);
+  const session = task?.sessions.find(s => s.start === sessionStart);
+  if (!session || !session.end) return;
+
+  const rangeEl = entry.querySelector('.sl-range');
+  rangeEl.innerHTML = `
+    <input class="sl-time-input" type="time" value="${toTimeInput(session.start)}" data-role="start">
+    <span class="sl-dash"> – </span>
+    <input class="sl-time-input" type="time" value="${toTimeInput(session.end)}" data-role="end">
+  `;
+  rangeEl.querySelector('[data-role="start"]').focus();
+
+  let saved = false;
+  function save() {
+    if (saved) return;
+    saved = true;
+    const startInput = rangeEl.querySelector('[data-role="start"]');
+    const endInput   = rangeEl.querySelector('[data-role="end"]');
+    if (!startInput || !endInput) return;
+    const newStart = fromTimeInput(startInput.value, session.start);
+    const newEnd   = fromTimeInput(endInput.value,   session.end);
+    if (newEnd > newStart) {
+      session.start = newStart;
+      session.end   = newEnd;
+      persist();
+    }
+    render();
+  }
+
+  entry.addEventListener('focusout', () => {
+    setTimeout(() => {
+      if (!entry.contains(document.activeElement)) save();
+    }, 0);
+  });
+
+  entry.addEventListener('keydown', e => {
+    if (e.key === 'Enter')  { e.preventDefault(); e.stopPropagation(); save(); }
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); render(); }
+  });
+}
+
 // ── Click ─────────────────────────────────────────────────────────────────────
 listEl.addEventListener('click', e => {
+  const slRange = e.target.closest('.sl-range');
+  if (slRange && slRange.closest('.sl-entry.editable')) {
+    const entry = slRange.closest('.sl-entry');
+    if (!entry.querySelector('.sl-time-input')) {
+      beginEditSession(entry, entry.dataset.taskId, parseInt(entry.dataset.sessionStart));
+    }
+    return;
+  }
+
   const delBtn = e.target.closest('.t-del');
   if (delBtn) { deleteTask(delBtn.dataset.id); return; }
 
