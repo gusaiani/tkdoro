@@ -357,6 +357,27 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* ── Editable session row ── */
+.sl-entry.editable .sl-range {
+  cursor: pointer;
+  transition: color 0.1s;
+}
+.sl-entry.editable:hover .sl-range { color: var(--text); }
+
+/* Inline time inputs */
+.sl-time-input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--accent);
+  color: var(--accent);
+  font-family: var(--font);
+  font-size: 13px;
+  width: 90px;
+  padding: 0;
+  outline: none;
+}
+.sl-dash { color: var(--dim); }
+
 /* ── Total ── */
 .total-row {
   display: flex;
