@@ -5,9 +5,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app.py index.html favicon.svg ./
-
-ENV DB_PATH=/data/tt.db
+COPY app.py index.html favicon.svg favicon-local.svg ./
+COPY static/ ./static/
 
 EXPOSE 8080
 
