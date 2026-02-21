@@ -1,6 +1,9 @@
 import json
 import os
 import time
+
+from dotenv import load_dotenv
+load_dotenv()
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
