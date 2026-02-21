@@ -178,6 +178,14 @@ function deleteTask(id) {
   render();
 }
 
+function deleteSession(taskId, sessionStart) {
+  const task = data.tasks.find(t => t.id === taskId);
+  if (!task) return;
+  task.sessions = task.sessions.filter(s => s.start !== sessionStart);
+  persist();
+  render();
+}
+
 // ── Tick ──────────────────────────────────────────────────────────────────────
 let ticker = null;
 
@@ -279,6 +287,7 @@ function render() {
               data-task-id="${task.id}" data-session-start="${s.start}">
             <span class="sl-range">${fmtClock(s.start)} – ${live ? 'now' : fmtClock(s.end)}</span>
             <span class="sl-dur"${live ? ` data-live-range="${s.start}"` : ''}>${fmt(dur)}</span>
+            ${live ? '' : `<button class="sl-del" tabindex="-1">✕</button>`}
           </div>`;
         }).join('')}
       </div>` : '';
@@ -414,6 +423,13 @@ listEl.addEventListener('click', e => {
     if (!entry.querySelector('.sl-time-input')) {
       beginEditSession(entry, entry.dataset.taskId, parseInt(entry.dataset.sessionStart));
     }
+    return;
+  }
+
+  const slDel = e.target.closest('.sl-del');
+  if (slDel) {
+    const entry = slDel.closest('.sl-entry');
+    deleteSession(entry.dataset.taskId, parseInt(entry.dataset.sessionStart));
     return;
   }
 
