@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#f8f5f2"/>
+
+  <!-- Subtle grid lines for texture -->
+  <line x1="0" y1="314" x2="1200" y2="314" stroke="#e0dbd6" stroke-width="1" opacity="0.5"/>
+  <line x1="600" y1="0" x2="600" y2="630" stroke="#e0dbd6" stroke-width="1" opacity="0.3"/>
+
+  <!-- Wordmark -->
+  <text
+    x="600"
+    y="248"
+    font-family="'IBM Plex Mono', 'Courier New', monospace"
+    font-size="112"
+    font-weight="700"
+    fill="#f45d48"
+    text-anchor="middle"
+    letter-spacing="-2"
+  >Tikkit</text>
+
+  <!-- Tagline -->
+  <text
+    x="600"
+    y="308"
+    font-family="'IBM Plex Mono', 'Courier New', monospace"
+    font-size="26"
+    font-weight="400"
+    fill="#0a9e9e"
+    text-anchor="middle"
+    letter-spacing="0.04em"
+  >keyboard-driven time tracking</text>
+
+  <!-- CLI prompt mock -->
+  <text
+    x="600"
+    y="400"
+    font-family="'IBM Plex Mono', 'Courier New', monospace"
+    font-size="22"
+    fill="#b0aaa4"
+    text-anchor="middle"
+  ><tspan fill="#0a9e9e" font-weight="700">&gt;</tspan>  task name…   <tspan fill="#0a9e9e" font-weight="700">↵</tspan> start / stop</text>
+
+  <!-- URL bottom-right -->
+  <text
+    x="1160"
+    y="604"
+    font-family="'IBM Plex Mono', 'Courier New', monospace"
+    font-size="18"
+    fill="#b0aaa4"
+    text-anchor="end"
+  >tikkit.fly.dev</text>
+</svg>

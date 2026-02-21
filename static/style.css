@@ -26,7 +26,7 @@ html, body {
 body {
   display: flex;
   justify-content: center;
-  padding: 56px 24px 80px;
+  padding: 56px 24px 118px;
 }
 
 /* ── Auth Screen ── */
@@ -399,3 +399,35 @@ body {
   color: var(--dim);
   font-variant-numeric: tabular-nums;
 }
+
+/* ── Share footer ── */
+.share-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 38px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  z-index: 100;
+}
+.share-label {
+  font-family: var(--font);
+  font-size: 11px;
+  color: var(--dimmer);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+.share-link {
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--dim);
+  text-decoration: none;
+  transition: color 0.1s;
+}
+.share-link:hover { color: var(--accent); }
