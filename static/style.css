@@ -364,6 +364,22 @@ body {
 }
 .sl-entry.editable:hover .sl-range { color: var(--text); }
 
+.sl-del {
+  opacity: 0;
+  background: none;
+  border: none;
+  color: var(--red);
+  font-family: var(--font);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0 2px;
+  flex-shrink: 0;
+  transition: opacity 0.1s;
+  line-height: 1;
+}
+.sl-entry:hover .sl-del { opacity: 1; }
+.sl-del:hover { filter: brightness(1.3); }
+
 /* Inline time inputs */
 .sl-time-input {
   background: transparent;
