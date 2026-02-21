@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,700;1,400&family=Inconsolata:wght@400;500;700&family=Fira+Code:wght@400;500;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Source+Code+Pro:ital,wght@0,400;0,500;0,700;1,400&family=Inter:wght@400;500;700&family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&family=Outfit:wght@400;500;700&family=Nunito:ital,wght@0,400;0,500;0,700;1,400&family=Rubik:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -28,7 +28,7 @@
       height: 100%;
       background: var(--bg);
       color: var(--text);
-      font-family: 'JetBrains Mono', monospace;
+      font-family: var(--font, 'JetBrains Mono', monospace);
       font-size: 16px;
       line-height: 1.5;
     }
@@ -68,7 +68,7 @@
       border: none;
       outline: none;
       color: var(--text);
-      font-family: 'JetBrains Mono', monospace;
+      font-family: var(--font, 'JetBrains Mono', monospace);
       font-size: 16px;
       padding: 8px 0 10px;
       caret-color: var(--accent);
@@ -81,7 +81,7 @@
       background: var(--accent);
       color: var(--surface);
       border: none;
-      font-family: 'JetBrains Mono', monospace;
+      font-family: var(--font, 'JetBrains Mono', monospace);
       font-size: 14px;
       padding: 10px 24px;
       cursor: pointer;
@@ -104,7 +104,7 @@
       background: none;
       border: none;
       color: var(--dim);
-      font-family: 'JetBrains Mono', monospace;
+      font-family: var(--font, 'JetBrains Mono', monospace);
       font-size: 13px;
       cursor: pointer;
       padding: 0;
@@ -156,7 +156,7 @@
       background: none;
       border: none;
       color: var(--dimmer);
-      font-family: 'JetBrains Mono', monospace;
+      font-family: var(--font, 'JetBrains Mono', monospace);
       font-size: 13px;
       cursor: pointer;
       padding: 0;
@@ -193,7 +193,7 @@
       border: none;
       outline: none;
       color: var(--text);
-      font-family: 'JetBrains Mono', monospace;
+      font-family: var(--font, 'JetBrains Mono', monospace);
       font-size: 22px;
       padding: 8px 0 10px 12px;
       caret-color: var(--accent);
@@ -209,7 +209,7 @@
     }
 
     .search-hint kbd {
-      font-family: 'JetBrains Mono', monospace;
+      font-family: var(--font, 'JetBrains Mono', monospace);
       font-size: 12px;
       color: var(--dim);
       border: 1px solid var(--border);
@@ -322,7 +322,7 @@
       background: none;
       border: none;
       color: var(--red);
-      font-family: 'JetBrains Mono', monospace;
+      font-family: var(--font, 'JetBrains Mono', monospace);
       font-size: 14px;
       cursor: pointer;
       padding: 2px 4px;
@@ -389,6 +389,38 @@
       color: var(--dim);
       font-variant-numeric: tabular-nums;
     }
+
+    /* ── Font picker ── */
+    #font-picker {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      font-size: 11px;
+      color: var(--dim);
+      font-family: var(--font, 'JetBrains Mono', monospace);
+      z-index: 100;
+    }
+
+    #font-picker button {
+      background: none;
+      border: none;
+      color: var(--dimmer);
+      cursor: pointer;
+      font-size: 12px;
+      padding: 0 2px;
+      line-height: 1;
+    }
+
+    #font-picker button:hover { color: var(--text); }
+
+    #fp-name { min-width: 130px; text-align: center; }
+    #fp-index { color: var(--dimmer); }
   </style>
 </head>
 <body>
@@ -433,6 +465,12 @@
     <span class="total-time" id="total-time"></span>
   </div>
 
+</div>
+<div id="font-picker">
+  <button id="fp-prev">←</button>
+  <span id="fp-name">JetBrains Mono</span>
+  <span id="fp-index">1/12</span>
+  <button id="fp-next">→</button>
 </div>
 <script>
 // ── Persistence ───────────────────────────────────────────────────────────────
@@ -809,6 +847,44 @@ listEl.addEventListener('click', e => {
     if (task) startTask(task);
   }
 });
+
+// ── Font picker ───────────────────────────────────────────────────────────────
+const FONTS = [
+  { name: 'JetBrains Mono', family: "'JetBrains Mono', monospace" },
+  { name: 'IBM Plex Mono',  family: "'IBM Plex Mono', monospace" },
+  { name: 'Inconsolata',    family: "'Inconsolata', monospace" },
+  { name: 'Fira Code',      family: "'Fira Code', monospace" },
+  { name: 'Space Mono',     family: "'Space Mono', monospace" },
+  { name: 'Source Code Pro',family: "'Source Code Pro', monospace" },
+  { name: 'Inter',          family: "'Inter', sans-serif" },
+  { name: 'DM Sans',        family: "'DM Sans', sans-serif" },
+  { name: 'Outfit',         family: "'Outfit', sans-serif" },
+  { name: 'Nunito',         family: "'Nunito', sans-serif" },
+  { name: 'Rubik',          family: "'Rubik', sans-serif" },
+  { name: 'System UI',      family: "system-ui, -apple-system, sans-serif" },
+];
+
+let fontIdx = 0;
+
+function applyFont(idx) {
+  fontIdx = (idx + FONTS.length) % FONTS.length;
+  const f = FONTS[fontIdx];
+  document.documentElement.style.setProperty('--font', f.family);
+  document.getElementById('fp-name').textContent = f.name;
+  document.getElementById('fp-index').textContent = `${fontIdx + 1}/${FONTS.length}`;
+  document.getElementById('font-picker').style.fontFamily = "'JetBrains Mono', monospace";
+}
+
+document.getElementById('fp-prev').addEventListener('click', () => applyFont(fontIdx - 1));
+document.getElementById('fp-next').addEventListener('click', () => applyFont(fontIdx + 1));
+
+document.addEventListener('keydown', e => {
+  if (e.target === searchEl) return;
+  if (e.key === '[') applyFont(fontIdx - 1);
+  if (e.key === ']') applyFont(fontIdx + 1);
+});
+
+applyFont(0);
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 load();
