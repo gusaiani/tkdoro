@@ -313,9 +313,9 @@ function renderHistory() {
 
     return `
       <div class="day-row" data-date="${dateStr}">
-        <span class="day-chevron">${isExp ? '▲' : '▶'}</span>
         <span class="day-label"><span class="day-name">${name}</span> <span class="day-date">${date}</span></span>
         <span class="day-total">${fmt(total)}</span>
+        <span class="day-chevron">${isExp ? '▲' : '▼'}</span>
       </div>
       ${isExp ? `<div class="day-tasks">${
         tasks.map(t => `

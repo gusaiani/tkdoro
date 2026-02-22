@@ -342,11 +342,12 @@ body {
 }
 
 .sl-entry {
+  position: relative;
   display: flex;
   gap: 16px;
   font-size: 13px;
   color: var(--dim);
-  padding: 3px 0;
+  padding: 3px 60px 3px 0;
 }
 
 .sl-entry.live { color: var(--accent); }
@@ -365,6 +366,10 @@ body {
 .sl-entry.editable:hover .sl-range { color: var(--text); }
 
 .sl-del {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
   opacity: 0;
   background: none;
   border: none;
@@ -373,7 +378,6 @@ body {
   font-size: 11px;
   cursor: pointer;
   padding: 0 2px;
-  flex-shrink: 0;
   transition: opacity 0.1s;
   line-height: 1;
 }
@@ -400,7 +404,7 @@ body {
   justify-content: space-between;
   align-items: center;
   margin-top: 2px;
-  padding-top: 14px;
+  padding: 14px 60px 0 0;
 }
 
 .total-label {
@@ -425,7 +429,7 @@ body {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 8px 20px 8px 0;
+  padding: 8px 30px 8px 22px;
   border-top: 1px solid var(--border);
   cursor: pointer;
   user-select: none;
@@ -461,6 +465,8 @@ body {
   font-size: 13px;
   color: var(--dimmer);
   font-variant-numeric: tabular-nums;
+  min-width: 84px;
+  text-align: right;
   flex-shrink: 0;
 }
 
