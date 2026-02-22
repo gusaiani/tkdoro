@@ -15,7 +15,7 @@
 }
 
 html, body {
-  height: 100%;
+  min-height: 100%;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
@@ -197,6 +197,8 @@ body {
   margin-bottom: 28px;
   padding-top: 6px;
 }
+
+.char-up { position: relative; top: -2px; display: inline-block; }
 
 .search-hint kbd {
   font-family: var(--font);
@@ -405,8 +407,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 2px;
-  padding: 14px 60px 0 22px;
+  padding: 6px 60px 6px 22px;
 }
 
 .total-label {
@@ -424,8 +425,12 @@ body {
 
 /* ── History ── */
 #history {
-  margin-top: 8px;
+  margin-top: 40px;
 }
+
+.day-row:first-child { border-top: none; }
+
+.week-total-row { border-top: 2px solid var(--border); }
 
 .day-row {
   display: flex;
@@ -473,7 +478,7 @@ body {
 }
 
 .day-tasks {
-  padding: 2px 0 10px 30px;
+  padding: 2px 0 10px 22px;
 }
 
 .day-task-row {
@@ -481,7 +486,7 @@ body {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 3px 20px 3px 0;
+  padding: 3px 60px 3px 0;
   font-size: 13px;
   color: var(--dimmer);
   cursor: pointer;
