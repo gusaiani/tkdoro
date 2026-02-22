@@ -155,6 +155,20 @@ const taskTodayMs = t => t.sessions
 const allTodayMs = () => data.tasks.reduce((a,t) => a + taskTodayMs(t), 0);
 const runningTask = () => data.tasks.find(t => t.sessions.some(s => !s.end)) ?? null;
 
+function allWeekMs() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dow = today.getDay();
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
+  const mondayTs = monday.getTime();
+  return data.tasks.reduce((total, t) =>
+    total + t.sessions
+      .filter(s => s.start >= mondayTs)
+      .reduce((a, s) => a + ((s.end ?? Date.now()) - s.start), 0)
+  , 0);
+}
+
 // ── Actions ───────────────────────────────────────────────────────────────────
 function startTask(task) {
   const cur = runningTask();
@@ -223,6 +237,8 @@ function liveUpdate() {
   });
   const tot = document.getElementById('total-time');
   if (tot) tot.textContent = fmt(allTodayMs());
+  const wk = document.getElementById('week-total-time');
+  if (wk) wk.textContent = fmt(allWeekMs());
   updateTabTitle();
 }
 
@@ -303,6 +319,8 @@ function renderHistory() {
   const days = weekPastDays().filter(d => dayTotalMs(d) > 0);
   if (days.length === 0) { historyEl.innerHTML = ''; return; }
 
+  const weekTotal = allWeekMs();
+
   historyEl.innerHTML = days.map(dateStr => {
     const isExp  = expandedDays.has(dateStr);
     const total  = dayTotalMs(dateStr);
@@ -326,7 +344,12 @@ function renderHistory() {
           </div>`).join('')
       }</div>` : ''}
     `;
-  }).join('');
+  }).join('') + `
+    <div class="total-row week-total-row">
+      <span class="total-label">week</span>
+      <span class="total-time" id="week-total-time">${fmt(weekTotal)}</span>
+    </div>
+  `;
 }
 
 historyEl.addEventListener('click', e => {

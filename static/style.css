@@ -405,8 +405,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 2px;
-  padding: 14px 60px 0 22px;
+  padding: 6px 60px 6px 22px;
 }
 
 .total-label {
@@ -424,8 +423,12 @@ body {
 
 /* ── History ── */
 #history {
-  margin-top: 8px;
+  margin-top: 40px;
 }
+
+.day-row:first-child { border-top: none; }
+
+.week-total-row { border-top: 2px solid var(--border); }
 
 .day-row {
   display: flex;
