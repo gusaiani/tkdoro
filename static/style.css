@@ -15,7 +15,7 @@
 }
 
 html, body {
-  height: 100%;
+  min-height: 100%;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
@@ -197,6 +197,8 @@ body {
   margin-bottom: 28px;
   padding-top: 6px;
 }
+
+.char-up { position: relative; top: -2px; display: inline-block; }
 
 .search-hint kbd {
   font-family: var(--font);
