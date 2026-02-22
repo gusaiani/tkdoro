@@ -321,6 +321,16 @@ historyEl.addEventListener('click', e => {
     return;
   }
 
+  const taskRow = e.target.closest('.day-task-row');
+  if (taskRow) {
+    const task = data.tasks.find(t => t.id === taskRow.dataset.taskId);
+    if (task) {
+      startTask(task);
+      searchEl.focus();
+    }
+    return;
+  }
+
   const row = e.target.closest('.day-row');
   if (!row) return;
   const date = row.dataset.date;
