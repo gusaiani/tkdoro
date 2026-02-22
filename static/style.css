@@ -3,10 +3,10 @@
 :root {
   --bg:       #f8f5f2;
   --surface:  #fffffe;
-  --border:   #e0dbd6;
+  --border:   #ccc7c2;
   --text:     #232323;
   --dim:      #6e6e6e;
-  --dimmer:   #b0aaa4;
+  --dimmer:   #9c9690;
   --font:     'IBM Plex Mono', monospace;
   --accent:   #0a9e9e;
   --green:    #0a9e9e;
@@ -235,6 +235,8 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
+.task-row:last-child { border-bottom-width: 2px; }
+
 .task-row.selected { background: var(--sel); }
 
 .task-row.selected::before {
@@ -404,7 +406,7 @@ body {
   justify-content: space-between;
   align-items: center;
   margin-top: 2px;
-  padding: 14px 60px 0 0;
+  padding: 14px 60px 0 22px;
 }
 
 .total-label {
