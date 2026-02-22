@@ -476,7 +476,10 @@ body {
   padding: 3px 20px 3px 0;
   font-size: 13px;
   color: var(--dimmer);
+  cursor: pointer;
 }
+.day-task-row:hover .dt-name,
+.day-task-row:hover .dt-time { color: var(--dim); }
 
 .dt-name {
   flex: 1;
