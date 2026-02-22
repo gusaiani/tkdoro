@@ -197,6 +197,21 @@ function ensureTick() {
   }, 1000);
 }
 
+function fmtTabTimer(ms) {
+  const totalMin = Math.floor(ms / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+function updateTabTitle() {
+  const cur = runningTask();
+  if (!cur) { document.title = 'Tikkit'; return; }
+  const session = cur.sessions.find(s => !s.end);
+  if (!session) { document.title = 'Tikkit'; return; }
+  document.title = `${fmtTabTimer(Date.now() - session.start)} · Tikkit`;
+}
+
 function liveUpdate() {
   document.querySelectorAll('[data-live]').forEach(el => {
     const t = data.tasks.find(x => x.id === el.dataset.live);
@@ -208,6 +223,7 @@ function liveUpdate() {
   });
   const tot = document.getElementById('total-time');
   if (tot) tot.textContent = fmt(allTodayMs());
+  updateTabTitle();
 }
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -417,6 +433,7 @@ function render() {
 
   renderHistory();
   ensureTick();
+  updateTabTitle();
 }
 
 // ── Keyboard ──────────────────────────────────────────────────────────────────
