@@ -103,6 +103,10 @@ body {
 
 .auth-toggle-btn:hover { color: var(--text); }
 
+.auth-divider { text-align: center; color: var(--dim); margin: 20px 0; font-size: 0.85em; }
+
+#google-btn { display: flex; justify-content: center; }
+
 /* ── App ── */
 #app {
   width: 100%;

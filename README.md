@@ -64,13 +64,86 @@ fly postgres attach tt-<yourname>-db
 fly secrets set SECRET_KEY="$(openssl rand -hex 32)"
 ```
 
-**3. Deploy**
+**3a. (Optional) Enable password reset emails**
+
+The app uses [Resend](https://resend.com) for transactional email. Without these secrets the forgot-password flow silently skips sending — everything else works normally.
+
+```bash
+fly secrets set RESEND_API_KEY="re_..."
+fly secrets set RESEND_FROM="noreply@yourdomain.com"
+fly secrets set APP_URL="https://tt-<yourname>.fly.dev"
+```
+
+`RESEND_FROM` must be an address on a domain you have verified in the Resend dashboard.
+
+**4. Deploy**
 
 ```bash
 fly deploy
 ```
 
 The app will be available at `https://tt-<yourname>.fly.dev`. Redeploy after code changes with `fly deploy`.
+
+## Google SSO
+
+The app supports sign-in with Google as an alternative to email/password. Both methods coexist — existing password accounts are unaffected. Accounts are matched by email: if the Google account email already exists in the database, that account is used; otherwise a new one is created with `password_hash = NULL`.
+
+**How it works**
+
+1. The frontend loads the [Google Identity Services (GIS)](https://developers.google.com/identity/gsi/web) SDK and fetches the client ID from `GET /auth/google/client-id`.
+2. GIS renders a "Sign in with Google" button. When the user picks a Google account, GIS returns a signed ID token in the browser.
+3. The frontend POSTs the token to `POST /auth/google`. The server verifies it server-side with `google-auth` and returns the same JWT the rest of the app uses.
+
+**Setup**
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com) → APIs & Services → Credentials → Create credentials → OAuth 2.0 Client ID (Web application).
+2. Add your origin(s) as **Authorised JavaScript origins** (e.g. `http://localhost:8000`, `https://yourapp.fly.dev`). No redirect URIs are needed.
+3. Copy the client ID.
+
+**Environment variables**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `GOOGLE_CLIENT_ID` | *(empty)* | OAuth 2.0 client ID from Google Cloud Console. If empty, the button is hidden and the endpoint returns 501. |
+
+**Local setup**
+
+```bash
+fly secrets set GOOGLE_CLIENT_ID="<your-client-id>"   # production
+# or add to .env for local dev:
+echo 'GOOGLE_CLIENT_ID=<your-client-id>' >> .env
+```
+
+Leave `GOOGLE_CLIENT_ID` unset to disable Google sign-in entirely — no button appears and no JS errors occur.
+
+## Password reset
+
+The app has a built-in forgot-password flow using [Resend](https://resend.com) as the email provider.
+
+**How it works**
+
+1. User clicks "forgot password?" on the sign-in screen and submits their email.
+2. If the email matches an account, a signed one-time token is stored in `password_reset_tokens` (expires in 60 minutes) and an email is sent with a link like `https://yourdomain.com/?token=<token>`.
+3. Opening that link shows a "set new password" form. On submit the token is marked used and the password hash is updated.
+4. The response is always `{"ok": true}` regardless of whether the email exists, to avoid leaking account information.
+
+**Environment variables**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RESEND_API_KEY` | *(empty)* | API key from [resend.com](https://resend.com). If empty, emails are skipped silently. |
+| `RESEND_FROM` | `noreply@tikkit.fly.dev` | Sender address — must be on a domain verified in Resend. |
+| `APP_URL` | `https://tikkit.fly.dev` | Base URL prepended to the reset link in emails. Set to `http://localhost:8000` for local testing. |
+
+**Local testing without email**
+
+Leave `RESEND_API_KEY` unset. After submitting the forgot-password form, grab the token directly from the database:
+
+```sql
+SELECT token FROM password_reset_tokens ORDER BY expires_at DESC LIMIT 1;
+```
+
+Then open `http://localhost:8000/?token=<token>` manually to reach the reset form.
 
 ## Usage
 

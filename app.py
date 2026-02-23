@@ -1,5 +1,6 @@
 import json
 import os
+import secrets
 import time
 
 from dotenv import load_dotenv
@@ -8,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 import bcrypt
+import httpx
 import psycopg2
 import psycopg2.extras
 from fastapi import Depends, FastAPI, HTTPException, Request, status
@@ -21,6 +23,11 @@ SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-in-production")
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost/tt")
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_DAYS = 30
+RESEND_API_KEY       = os.getenv("RESEND_API_KEY", "")
+RESEND_FROM          = os.getenv("RESEND_FROM", "noreply@tikkit.fly.dev")
+APP_URL              = os.getenv("APP_URL", "https://tikkit.fly.dev")
+RESET_EXPIRE_MINUTES = 60
+GOOGLE_CLIENT_ID     = os.getenv("GOOGLE_CLIENT_ID", "")
 
 bearer = HTTPBearer()
 
@@ -46,14 +53,23 @@ def init_db():
                         CREATE TABLE IF NOT EXISTS users (
                             id            SERIAL PRIMARY KEY,
                             email         TEXT UNIQUE NOT NULL,
-                            password_hash TEXT NOT NULL,
+                            password_hash TEXT,
                             created_at    TIMESTAMPTZ DEFAULT NOW()
                         )
                     """)
+                    cur.execute("ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL")
                     cur.execute("""
                         CREATE TABLE IF NOT EXISTS user_data (
                             user_id    INTEGER PRIMARY KEY REFERENCES users(id),
                             tasks_json TEXT NOT NULL DEFAULT '{"tasks":[]}'
+                        )
+                    """)
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                            token      TEXT PRIMARY KEY,
+                            user_id    INTEGER NOT NULL REFERENCES users(id),
+                            expires_at TIMESTAMPTZ NOT NULL,
+                            used       BOOLEAN NOT NULL DEFAULT FALSE
                         )
                     """)
             return
@@ -101,6 +117,45 @@ class AuthRequest(BaseModel):
     password: str
 
 
+class GoogleAuthRequest(BaseModel):
+    credential: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    password: str
+
+
+@app.get("/auth/google/client-id")
+def google_client_id_endpoint():
+    return {"client_id": GOOGLE_CLIENT_ID}
+
+
+@app.post("/auth/google")
+def google_auth(req: GoogleAuthRequest, db=Depends(get_db)):
+    from google.oauth2 import id_token
+    from google.auth.transport import requests as grequests
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(status_code=501, detail="Google auth not configured")
+    try:
+        idinfo = id_token.verify_oauth2_token(req.credential, grequests.Request(), GOOGLE_CLIENT_ID)
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Invalid Google token")
+    email = idinfo["email"]
+    db.execute("SELECT id FROM users WHERE email = %s", (email,))
+    row = db.fetchone()
+    if row:
+        user_id = row["id"]
+    else:
+        db.execute("INSERT INTO users (email, password_hash) VALUES (%s, NULL) RETURNING id", (email,))
+        user_id = db.fetchone()["id"]
+    return {"token": make_token(user_id)}
+
+
 @app.post("/auth/signup")
 def signup(req: AuthRequest, db: Annotated[psycopg2.extensions.cursor, Depends(get_db)]):
     db.execute("SELECT id FROM users WHERE email = %s", (req.email,))
@@ -122,6 +177,48 @@ def login(req: AuthRequest, db: Annotated[psycopg2.extensions.cursor, Depends(ge
     if not row or not verify_password(req.password, row["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     return {"token": make_token(row["id"])}
+
+
+@app.post("/auth/forgot-password")
+async def forgot_password(req: ForgotPasswordRequest, db=Depends(get_db)):
+    db.execute("SELECT id FROM users WHERE email = %s", (req.email,))
+    row = db.fetchone()
+    if row:
+        token = secrets.token_urlsafe(32)
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=RESET_EXPIRE_MINUTES)
+        db.execute(
+            "INSERT INTO password_reset_tokens (token, user_id, expires_at) VALUES (%s, %s, %s)",
+            (token, row["id"], expires_at),
+        )
+        reset_url = f"{APP_URL}/?token={token}"
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                "https://api.resend.com/emails",
+                headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+                json={
+                    "from": RESEND_FROM,
+                    "to": [req.email],
+                    "subject": "Reset your Tikkit password",
+                    "html": f"<p>Reset your Tikkit password (expires in 1 hour):</p><p><a href='{reset_url}'>{reset_url}</a></p><p>If you didn't request this, ignore this email.</p>",
+                },
+            )
+    return {"ok": True}
+
+
+@app.post("/auth/reset-password")
+def reset_password(req: ResetPasswordRequest, db=Depends(get_db)):
+    db.execute(
+        "SELECT user_id, expires_at, used FROM password_reset_tokens WHERE token = %s",
+        (req.token,),
+    )
+    row = db.fetchone()
+    if not row or row["used"] or row["expires_at"] < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Invalid or expired token")
+    if len(req.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    db.execute("UPDATE users SET password_hash = %s WHERE id = %s", (hash_password(req.password), row["user_id"]))
+    db.execute("UPDATE password_reset_tokens SET used = TRUE WHERE token = %s", (req.token,))
+    return {"ok": True}
 
 
 @app.get("/data")

@@ -2,6 +2,8 @@
 let data = { tasks: [] };
 
 async function load() {
+  const resetToken = new URLSearchParams(location.search).get('token');
+  if (resetToken) { showAuth(); showResetView(); return; }
   const token = localStorage.getItem('tt_token');
   if (!token) { showAuth(); return; }
   try {
@@ -42,12 +44,76 @@ function persist() {
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 let authMode = 'login';
+let googleClientId = null;
+let googleButtonRendered = false;
+
+async function loadGoogleAuth() {
+  try {
+    const r = await fetch('/auth/google/client-id');
+    const { client_id } = await r.json();
+    if (!client_id) return;
+    googleClientId = client_id;
+    initGoogleButton();
+  } catch {}
+}
+
+function initGoogleButton() {
+  if (!googleClientId || !window.google?.accounts?.id || googleButtonRendered) return;
+  const container = document.getElementById('google-btn');
+  const width = Math.min(container.offsetWidth || 400, 400);
+  google.accounts.id.initialize({ client_id: googleClientId, callback: handleGoogleCredential });
+  google.accounts.id.renderButton(container, { theme: 'outline', size: 'large', width });
+  googleButtonRendered = true;
+}
+
+async function handleGoogleCredential(response) {
+  const errorEl = document.getElementById('auth-error');
+  errorEl.textContent = '';
+  try {
+    const r = await fetch('/auth/google', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential: response.credential })
+    });
+    const body = await r.json();
+    if (!r.ok) { errorEl.textContent = body.detail || 'error'; return; }
+    localStorage.setItem('tt_token', body.token);
+    data = { tasks: [] };
+    await load();
+  } catch {
+    errorEl.textContent = 'network error';
+  }
+}
+
+function showLoginView() {
+  document.getElementById('auth-login-view').style.display = 'block';
+  document.getElementById('auth-forgot-view').style.display = 'none';
+  document.getElementById('auth-reset-view').style.display = 'none';
+  document.getElementById('auth-error').textContent = '';
+  document.getElementById('auth-email').focus();
+  initGoogleButton(); // no-op if already rendered or GIS not yet loaded
+}
+
+function showForgotView() {
+  document.getElementById('auth-login-view').style.display = 'none';
+  document.getElementById('auth-forgot-view').style.display = 'block';
+  document.getElementById('auth-reset-view').style.display = 'none';
+  document.getElementById('forgot-error').textContent = '';
+  document.getElementById('forgot-email').focus();
+}
+
+function showResetView() {
+  document.getElementById('auth-login-view').style.display = 'none';
+  document.getElementById('auth-forgot-view').style.display = 'none';
+  document.getElementById('auth-reset-view').style.display = 'block';
+  document.getElementById('reset-error').textContent = '';
+  document.getElementById('reset-password').focus();
+}
 
 function showAuth() {
   document.getElementById('auth-screen').style.display = 'block';
   document.getElementById('app').style.display = 'none';
-  document.getElementById('auth-error').textContent = '';
-  document.getElementById('auth-email').focus();
+  showLoginView();
 }
 
 function showTracker() {
@@ -97,6 +163,62 @@ document.getElementById('auth-email').addEventListener('keydown', e => {
 
 document.getElementById('auth-password').addEventListener('keydown', e => {
   if (e.key === 'Enter') submitAuth();
+});
+
+document.getElementById('auth-forgot-link').addEventListener('click', showForgotView);
+document.getElementById('forgot-back').addEventListener('click', showLoginView);
+
+async function submitForgot() {
+  const email   = document.getElementById('forgot-email').value.trim();
+  const errorEl = document.getElementById('forgot-error');
+  errorEl.textContent = '';
+  if (!email) { errorEl.textContent = 'email required'; return; }
+  try {
+    await fetch('/auth/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    errorEl.style.color = 'teal';
+    errorEl.textContent = 'if that email exists, a reset link is on its way';
+  } catch {
+    errorEl.style.color = '';
+    errorEl.textContent = 'network error';
+  }
+}
+
+document.getElementById('forgot-submit').addEventListener('click', submitForgot);
+document.getElementById('forgot-email').addEventListener('keydown', e => {
+  if (e.key === 'Enter') submitForgot();
+});
+
+async function submitReset() {
+  const password = document.getElementById('reset-password').value;
+  const errorEl  = document.getElementById('reset-error');
+  errorEl.textContent = '';
+  const token = new URLSearchParams(location.search).get('token');
+  if (!token) { errorEl.textContent = 'missing reset token'; return; }
+  try {
+    const r = await fetch('/auth/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, password })
+    });
+    const body = await r.json();
+    if (!r.ok) { errorEl.textContent = body.detail || 'error'; return; }
+    history.replaceState(null, '', '/');
+    errorEl.style.color = 'teal';
+    errorEl.textContent = 'password updated — sign in';
+    setTimeout(showLoginView, 1800);
+  } catch {
+    errorEl.style.color = '';
+    errorEl.textContent = 'network error';
+  }
+}
+
+document.getElementById('reset-submit').addEventListener('click', submitReset);
+document.getElementById('reset-password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') submitReset();
 });
 
 function logout() {
@@ -223,7 +345,7 @@ function updateTabTitle() {
   if (!cur) { document.title = 'Tikkit'; return; }
   const session = cur.sessions.find(s => !s.end);
   if (!session) { document.title = 'Tikkit'; return; }
-  document.title = `${fmtTabTimer(Date.now() - session.start)} · Tikkit`;
+  document.title = `${fmtTabTimer(Date.now() - session.start)} · ${cur.name} · Tikkit`;
 }
 
 function liveUpdate() {
@@ -622,4 +744,6 @@ document.addEventListener('keydown', e => {
 });
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
+window.onGoogleLibraryLoad = initGoogleButton; // fires when GIS script finishes loading
+loadGoogleAuth();                               // fetches client_id from backend
 load();

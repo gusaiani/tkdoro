@@ -34,20 +34,44 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
 <div id="auth-screen" style="display:none">
   <div class="auth-logo">Tikkit</div>
-  <div class="auth-field">
-    <input id="auth-email" type="email" placeholder="email" autocomplete="email" spellcheck="false">
+
+  <div id="auth-login-view">
+    <div class="auth-field">
+      <input id="auth-email" type="email" placeholder="email" autocomplete="email" spellcheck="false">
+    </div>
+    <div class="auth-field">
+      <input id="auth-password" type="password" placeholder="password" autocomplete="current-password">
+    </div>
+    <button class="auth-submit" id="auth-submit">sign in</button>
+    <div class="auth-error" id="auth-error"></div>
+    <button class="auth-toggle-btn" id="auth-toggle">no account? sign up</button>
+    <button class="auth-toggle-btn" id="auth-forgot-link">forgot password?</button>
+    <div class="auth-divider">or</div>
+    <div id="google-btn"></div>
   </div>
-  <div class="auth-field">
-    <input id="auth-password" type="password" placeholder="password" autocomplete="current-password">
+
+  <div id="auth-forgot-view" style="display:none">
+    <div class="auth-field">
+      <input id="forgot-email" type="email" placeholder="email" autocomplete="email" spellcheck="false">
+    </div>
+    <button class="auth-submit" id="forgot-submit">send reset link</button>
+    <div class="auth-error" id="forgot-error"></div>
+    <button class="auth-toggle-btn" id="forgot-back">back to sign in</button>
   </div>
-  <button class="auth-submit" id="auth-submit">sign in</button>
-  <div class="auth-error" id="auth-error"></div>
-  <button class="auth-toggle-btn" id="auth-toggle">no account? sign up</button>
+
+  <div id="auth-reset-view" style="display:none">
+    <div class="auth-field">
+      <input id="reset-password" type="password" placeholder="new password" autocomplete="new-password">
+    </div>
+    <button class="auth-submit" id="reset-submit">set new password</button>
+    <div class="auth-error" id="reset-error"></div>
+  </div>
 </div>
 
 <div id="app" style="display:none">
