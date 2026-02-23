@@ -3,3 +3,5 @@ uvicorn[standard]==0.32.1
 python-jose[cryptography]==3.3.0
 bcrypt==4.2.1
 psycopg2-binary==2.9.10
+httpx==0.28.1
+google-auth==2.38.0
