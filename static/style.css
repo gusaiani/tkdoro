@@ -307,13 +307,19 @@ body {
 .t-expand {
   font-size: 10px;
   color: var(--dimmer);
-  width: 16px;
-  text-align: center;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  transition: color 0.1s;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.1s, background 0.1s;
 }
 
 .task-row:hover .t-expand { color: var(--dim); }
+.t-expand:hover { background: var(--sel); color: var(--text) !important; }
 
 .t-del {
   opacity: 0;
@@ -440,7 +446,7 @@ body {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 8px 30px 8px 22px;
+  padding: 8px 10px 8px 22px;
   border-top: 1px solid var(--border);
   cursor: pointer;
   user-select: none;
@@ -449,12 +455,19 @@ body {
 .day-chevron {
   font-size: 9px;
   color: var(--border);
-  width: 16px;
-  text-align: center;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.1s, background 0.1s;
 }
 
 .day-row:hover .day-chevron { color: var(--dimmer); }
+.day-chevron:hover { background: var(--sel); color: var(--text) !important; }
 
 .day-label { flex: 1; }
 
@@ -490,7 +503,7 @@ body {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 3px 60px 3px 0;
+  padding: 3px 10px 3px 0;
   font-size: 13px;
   color: var(--dimmer);
   cursor: pointer;
@@ -506,13 +519,16 @@ body {
 }
 
 .dt-time {
-  font-variant-numeric: tabular-nums;
+  min-width: 84px;
+  text-align: right;
   flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  margin-right: 42px; /* mirrors gap(14px) + chevron(28px) — aligns with day-total */
 }
 
 .dt-del {
   position: absolute;
-  right: 0;
+  right: 0; /* sits just outside the table boundary */
   opacity: 0;
   background: none;
   border: none;
