@@ -308,6 +308,9 @@ function startTask(task) {
 }
 
 function deleteTask(id) {
+  const task = data.tasks.find(t => t.id === id);
+  if (!task) return;
+  if (!confirm(`Delete "${task.name}" and all its history?`)) return;
   data.tasks = data.tasks.filter(t => t.id !== id);
   expanded.delete(id);
   persist();
@@ -317,6 +320,7 @@ function deleteTask(id) {
 function deleteSession(taskId, sessionStart) {
   const task = data.tasks.find(t => t.id === taskId);
   if (!task) return;
+  if (!confirm('Delete this time entry?')) return;
   task.sessions = task.sessions.filter(s => s.start !== sessionStart);
   persist();
   render();
@@ -430,6 +434,7 @@ function tasksForDay(dateStr) {
 function deleteTaskDay(taskId, dateStr) {
   const task = data.tasks.find(t => t.id === taskId);
   if (!task) return;
+  if (!confirm(`Delete all "${task.name}" sessions for ${dateStr}?`)) return;
   task.sessions = task.sessions.filter(s =>
     new Date(s.start).toISOString().slice(0, 10) !== dateStr
   );
