@@ -146,6 +146,56 @@ body {
 
 .hd-running.visible { opacity: 1; }
 
+.hd-pomodoro {
+  background: none;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0;
+  opacity: 0.35;
+  transition: opacity 0.15s;
+  line-height: 1;
+}
+
+.hd-pomodoro.active { opacity: 1; }
+.hd-pomodoro:hover { opacity: 0.7; }
+.hd-pomodoro.active:hover { opacity: 0.85; }
+
+@keyframes pomodoro-ring {
+  0%, 100% { transform: scale(1); }
+  20%       { transform: scale(1.4); }
+  40%       { transform: scale(0.9); }
+  60%       { transform: scale(1.3); }
+  80%       { transform: scale(0.95); }
+}
+
+.hd-pomodoro.ringing { animation: pomodoro-ring 0.6s ease; }
+
+.hd-pomodoro-mins {
+  width: 30px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--dim);
+  font-family: var(--font);
+  font-size: 12px;
+  text-align: center;
+  padding: 0 0 1px;
+  outline: none;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  -moz-appearance: textfield;
+}
+
+.hd-pomodoro-mins::-webkit-inner-spin-button,
+.hd-pomodoro-mins::-webkit-outer-spin-button { -webkit-appearance: none; }
+
+.hd-pomodoro.active ~ .hd-pomodoro-mins {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .hd-logout {
   background: none;
   border: none;

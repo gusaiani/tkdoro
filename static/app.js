@@ -228,12 +228,103 @@ function logout() {
     persist();
   }
   if (ticker) { clearInterval(ticker); ticker = null; }
+  clearPomodoroTimer();
   localStorage.removeItem('tt_token');
   data = { tasks: [] };
   showAuth();
 }
 
 document.getElementById('hd-logout').addEventListener('click', logout);
+
+// ── Pomodoro ──────────────────────────────────────────────────────────────────
+let pomodoroActive = false;
+let pomodoroTimer  = null;
+
+const pomodoroBtn  = document.getElementById('hd-pomodoro');
+const pomodoroMins = document.getElementById('hd-pomodoro-mins');
+
+// Persist the minutes value across sessions
+pomodoroMins.value = localStorage.getItem('tt_pomodoro_mins') ?? '25';
+pomodoroMins.addEventListener('change', () => {
+  const v = Math.min(60, Math.max(1, parseInt(pomodoroMins.value) || 25));
+  pomodoroMins.value = v;
+  localStorage.setItem('tt_pomodoro_mins', v);
+});
+
+pomodoroBtn.addEventListener('click', () => {
+  pomodoroActive = !pomodoroActive;
+  pomodoroBtn.classList.toggle('active', pomodoroActive);
+  if (pomodoroActive) {
+    getAudioCtx().resume(); // warm up while we have a user gesture
+    if (Notification.permission === 'default') Notification.requestPermission();
+    // If a task is already running, arm from its current session start
+    const running = runningTask();
+    if (running) {
+      const session = running.sessions.find(s => !s.end);
+      if (session) armPomodoroTimer(running.name, session.start);
+    }
+  } else {
+    clearPomodoroTimer();
+  }
+});
+
+function clearPomodoroTimer() {
+  if (pomodoroTimer) { clearTimeout(pomodoroTimer); pomodoroTimer = null; }
+}
+
+let _audioCtx = null;
+
+function getAudioCtx() {
+  if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return _audioCtx;
+}
+
+function playPomodoroChime() {
+  try {
+    const ctx = getAudioCtx();
+    ctx.resume().then(() => {
+      function ding(freq, delay, dur, vol = 0.35) {
+        const t = ctx.currentTime + delay;
+        [freq, freq * 2.4].forEach((f, i) => {
+          const osc  = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = 'sine';
+          osc.frequency.value = f;
+          gain.gain.setValueAtTime(0, t);
+          gain.gain.linearRampToValueAtTime(i === 0 ? vol : vol * 0.3, t + 0.006);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + (i === 0 ? dur : dur * 0.5));
+          osc.start(t);
+          osc.stop(t + dur);
+        });
+      }
+      ding(784,  0,   1.8); // G5
+      ding(1047, 0.3, 1.5); // C6 — perfect fourth, classic bell interval
+    });
+  } catch {}
+}
+
+function armPomodoroTimer(taskName, sessionStart) {
+  clearPomodoroTimer();
+  if (!pomodoroActive) return;
+  const totalMs   = (parseInt(pomodoroMins.value) || 25) * 60 * 1000;
+  const remaining = totalMs - (Date.now() - sessionStart);
+  if (remaining <= 0) return; // session already exceeded pomodoro duration
+  pomodoroTimer = setTimeout(() => {
+    pomodoroTimer = null;
+    playPomodoroChime();
+    // In-app: bounce the tomato
+    pomodoroBtn.classList.remove('ringing');
+    void pomodoroBtn.offsetWidth; // reflow to restart animation
+    pomodoroBtn.classList.add('ringing');
+    pomodoroBtn.addEventListener('animationend', () => pomodoroBtn.classList.remove('ringing'), { once: true });
+    // Browser notification
+    if (Notification.permission === 'granted') {
+      new Notification('Tikkit — pomodoro done 🍅', { body: `Time to stop "${taskName}" and take a break.` });
+    }
+  }, remaining);
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const todayStr = () => new Date().toISOString().slice(0,10);
@@ -299,8 +390,11 @@ function startTask(task) {
   }
   if (task.sessions.some(s => !s.end)) {
     task.sessions.find(s => !s.end).end = Date.now();
+    clearPomodoroTimer();
   } else {
-    task.sessions.push({ start: Date.now(), end: null });
+    const sessionStart = Date.now();
+    task.sessions.push({ start: sessionStart, end: null });
+    armPomodoroTimer(task.name, sessionStart);
   }
   persist();
   render();
@@ -741,6 +835,7 @@ document.addEventListener('keydown', e => {
     const cur = runningTask();
     if (cur) {
       cur.sessions.find(s => !s.end).end = Date.now();
+      clearPomodoroTimer();
       persist();
       render();
     }
