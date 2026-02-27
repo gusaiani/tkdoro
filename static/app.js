@@ -782,6 +782,9 @@ function beginEditSession(entry, taskId, sessionStart) {
 }
 
 // ── Click ─────────────────────────────────────────────────────────────────────
+// Prevent mousedown from blurring the search input — click still fires normally
+listEl.addEventListener('mousedown', e => { e.preventDefault(); });
+
 listEl.addEventListener('click', e => {
   const slRange = e.target.closest('.sl-range');
   if (slRange && slRange.closest('.sl-entry.editable')) {
@@ -817,7 +820,7 @@ listEl.addEventListener('click', e => {
   if (main) {
     const row  = main.closest('.task-row');
     const task = data.tasks.find(t => t.id === row?.dataset.id);
-    if (task) startTask(task);
+    if (task) { startTask(task); searchEl.blur(); }
   }
 });
 
