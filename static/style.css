@@ -41,7 +41,20 @@ body {
   font-size: 13px;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  margin-bottom: 40px;
+  margin-bottom: 24px;
+}
+
+.auth-pitch {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+
+.auth-pitch-sub {
+  font-size: 13px;
+  color: var(--dim);
+  margin-bottom: 30px;
 }
 
 .auth-field {
