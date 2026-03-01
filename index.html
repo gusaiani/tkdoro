@@ -42,6 +42,7 @@
 <body>
 
 <div id="auth-screen" style="display:none">
+  <div class="auth-inner">
   <div class="auth-logo">Tkdoro</div>
 
   <div id="auth-login-view">
@@ -77,9 +78,10 @@
     <button class="auth-submit" id="reset-submit">set new password</button>
     <div class="auth-error" id="reset-error"></div>
   </div>
+  </div>
 </div>
 
-<div id="app" style="display:none">
+<div id="app">
 
   <div class="hd">
     <span class="hd-logo">Tkdoro</span>
@@ -88,7 +90,13 @@
     <span class="hd-running" id="hd-running">● recording</span>
     <button class="hd-pomodoro" id="hd-pomodoro" title="Toggle pomodoro">🍅</button>
     <input class="hd-pomodoro-mins" id="hd-pomodoro-mins" type="number" min="1" max="60" value="25" title="Pomodoro minutes">
-    <button class="hd-logout" id="hd-logout">logout</button>
+    <button class="hd-logout" id="hd-signin" style="display:none">sign in</button>
+    <button class="hd-logout" id="hd-logout" style="display:none">logout</button>
+  </div>
+
+  <div id="guest-banner">
+    Tasks are saved locally.
+    <button id="guest-signup-btn">Sign up</button> to keep them forever.
   </div>
 
   <div class="search-row">

@@ -1,19 +1,31 @@
 // ── Persistence ───────────────────────────────────────────────────────────────
+const GUEST_KEY = 'tt_guest_tasks';
 let data = { tasks: [] };
 
 async function load() {
   const resetToken = new URLSearchParams(location.search).get('token');
   if (resetToken) { showAuth(); showResetView(); return; }
   const token = localStorage.getItem('tt_token');
-  if (!token) { showAuth(); return; }
+  if (!token) {
+    loadGuestData();
+    showGuestMode();
+    render();
+    ensureTick();
+    return;
+  }
   try {
     const r = await fetch('/data', {
       headers: { 'Authorization': `Bearer ${token}` }
     });
-    if (r.status === 401) { localStorage.removeItem('tt_token'); showAuth(); return; }
+    if (r.status === 401) {
+      localStorage.removeItem('tt_token');
+      loadGuestData(); showGuestMode(); render(); ensureTick();
+      return;
+    }
     data = await r.json();
   } catch { data = { tasks: [] }; }
-  showTracker();
+  showUserMode();
+  hideAuth();
   render();
   ensureTick();
 }
@@ -28,7 +40,11 @@ bc.onmessage = e => {
 
 function persist() {
   const token = localStorage.getItem('tt_token');
-  if (!token) return;
+  if (!token) {
+    localStorage.setItem(GUEST_KEY, JSON.stringify(data));
+    bc.postMessage(data);
+    return;
+  }
   bc.postMessage(data);
   fetch('/data', {
     method: 'POST',
@@ -38,7 +54,7 @@ function persist() {
     },
     body: JSON.stringify(data)
   }).then(r => {
-    if (r.status === 401) { localStorage.removeItem('tt_token'); showAuth(); }
+    if (r.status === 401) { localStorage.removeItem('tt_token'); loadGuestData(); showGuestMode(); }
   }).catch(() => {});
 }
 
@@ -78,6 +94,21 @@ async function handleGoogleCredential(response) {
     const body = await r.json();
     if (!r.ok) { errorEl.textContent = body.detail || 'error'; return; }
     localStorage.setItem('tt_token', body.token);
+    const guestRaw = localStorage.getItem(GUEST_KEY);
+    if (guestRaw) {
+      await fetch('/data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${body.token}` },
+        body: guestRaw
+      });
+      localStorage.removeItem(GUEST_KEY);
+      data = JSON.parse(guestRaw);
+      showUserMode();
+      hideAuth();
+      render();
+      ensureTick();
+      return;
+    }
     data = { tasks: [] };
     await load();
   } catch {
@@ -90,6 +121,10 @@ function showLoginView() {
   document.getElementById('auth-forgot-view').style.display = 'none';
   document.getElementById('auth-reset-view').style.display = 'none';
   document.getElementById('auth-error').textContent = '';
+  document.getElementById('auth-submit').textContent = authMode === 'login' ? 'sign in' : 'sign up';
+  document.getElementById('auth-toggle').textContent = authMode === 'login'
+    ? 'no account? sign up'
+    : 'have an account? sign in';
   document.getElementById('auth-email').focus();
   initGoogleButton(); // no-op if already rendered or GIS not yet loaded
 }
@@ -110,17 +145,32 @@ function showResetView() {
   document.getElementById('reset-password').focus();
 }
 
-function showAuth() {
-  document.getElementById('auth-screen').style.display = 'block';
-  document.getElementById('app').style.display = 'none';
-  showLoginView();
+function loadGuestData() {
+  const raw = localStorage.getItem(GUEST_KEY);
+  data = raw ? JSON.parse(raw) : { tasks: [] };
 }
 
-function showTracker() {
-  document.getElementById('auth-screen').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
-  searchEl.focus();
+function showGuestMode() {
+  document.getElementById('guest-banner').style.display = 'block';
+  document.getElementById('hd-signin').style.display = '';
+  document.getElementById('hd-logout').style.display = 'none';
 }
+
+function showUserMode() {
+  document.getElementById('guest-banner').style.display = 'none';
+  document.getElementById('hd-signin').style.display = 'none';
+  document.getElementById('hd-logout').style.display = '';
+}
+
+function showAuth() {
+  document.getElementById('auth-screen').style.display = '';
+}
+
+function hideAuth() {
+  document.getElementById('auth-screen').style.display = 'none';
+}
+
+function showTracker() { hideAuth(); }
 
 document.getElementById('auth-toggle').addEventListener('click', () => {
   authMode = authMode === 'login' ? 'signup' : 'login';
@@ -148,6 +198,30 @@ async function submitAuth() {
     if (!r.ok) { errorEl.textContent = body.detail || 'error'; return; }
     localStorage.setItem('tt_token', body.token);
     document.getElementById('auth-password').value = '';
+    console.log('[sync] authMode=', authMode, 'GUEST_KEY=', localStorage.getItem(GUEST_KEY));
+    if (authMode === 'signup') {
+      const guestRaw = localStorage.getItem(GUEST_KEY);
+      if (guestRaw) {
+        console.log('[sync] syncing guest tasks to server…');
+        const syncRes = await fetch('/data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${body.token}` },
+          body: guestRaw
+        });
+        console.log('[sync] POST /data status=', syncRes.status);
+        localStorage.removeItem(GUEST_KEY);
+        data = JSON.parse(guestRaw);
+        showUserMode();
+        hideAuth();
+        render();
+        ensureTick();
+        return;
+      } else {
+        console.log('[sync] no guest tasks in localStorage — skipping sync');
+      }
+    } else {
+      console.log('[sync] authMode is not signup — skipping sync');
+    }
     data = { tasks: [] };
     await load();
   } catch {
@@ -223,18 +297,25 @@ document.getElementById('reset-password').addEventListener('keydown', e => {
 
 function logout() {
   const cur = runningTask();
-  if (cur) {
-    cur.sessions.find(s => !s.end).end = Date.now();
-    persist();
-  }
+  if (cur) { cur.sessions.find(s => !s.end).end = Date.now(); persist(); }
   if (ticker) { clearInterval(ticker); ticker = null; }
   clearPomodoroTimer();
   localStorage.removeItem('tt_token');
-  data = { tasks: [] };
-  showAuth();
+  loadGuestData();
+  showGuestMode();
+  render();
+  ensureTick();
 }
 
 document.getElementById('hd-logout').addEventListener('click', logout);
+
+document.getElementById('guest-signup-btn').addEventListener('click', () => {
+  authMode = 'signup'; showLoginView(); showAuth();
+});
+
+document.getElementById('hd-signin').addEventListener('click', () => {
+  authMode = 'login'; showLoginView(); showAuth();
+});
 
 // ── Pomodoro ──────────────────────────────────────────────────────────────────
 let pomodoroActive = false;
@@ -832,6 +913,10 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (e.key !== 'Escape') return;
+  if (document.getElementById('auth-screen').style.display !== 'none') {
+    hideAuth();
+    return;
+  }
   if (searchEl.value) {
     searchEl.blur(); // blur handler clears text and resets state
   } else {

@@ -31,8 +31,38 @@ body {
 
 /* ── Auth Screen ── */
 #auth-screen {
-  width: 100%;
+  position: fixed;
+  inset: 0;
+  background: rgba(248, 245, 242, 0.97);
+  display: flex;
+  justify-content: center;
+  padding-top: 80px;
+  z-index: 200;
+}
+
+.auth-inner {
   max-width: 400px;
+  width: 100%;
+}
+
+#guest-banner {
+  display: none;
+  font-size: 12px;
+  color: var(--dim);
+  border: 1px solid var(--border);
+  padding: 8px 14px;
+  margin-bottom: 20px;
+}
+
+#guest-banner button {
+  background: none;
+  border: none;
+  font-family: var(--font);
+  font-size: 12px;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
 }
 
 .auth-logo {

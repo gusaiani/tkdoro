@@ -84,6 +84,25 @@ fly deploy
 
 The app will be available at `https://tt-<yourname>.fly.dev`. Redeploy after code changes with `fly deploy`.
 
+## Guest mode
+
+New visitors land on the tracker immediately — no sign-up required. Tasks are stored in `localStorage` under the key `tt_guest_tasks` and survive page reloads. A banner at the top of the page reminds guests that their data is local and offers a one-click path to sign up. A "sign in" button also appears in the header.
+
+**How it works**
+
+1. On load, if there is no `tt_token` in `localStorage`, the app loads guest data from `localStorage` and renders it directly — no redirect to an auth screen.
+2. The auth form is a modal overlay (`position: fixed`, `z-index: 200`) that floats above the tracker rather than replacing it. Pressing `Escape` dismisses it.
+3. When a guest signs up with email/password and has existing local tasks, those tasks are POSTed to `/data` immediately after signup (before clearing the guest key). The local data becomes the user's server-side data, so nothing is lost.
+4. Logging out switches back to guest mode: the `tt_token` is removed, local guest tasks reload, and the banner reappears.
+
+**Local testing**
+
+1. Open the app in a private/incognito window (no existing token).
+2. You should see the tracker with the guest banner and "sign in" in the header — no login screen.
+3. Add a task, reload — the task should still be there.
+4. Click "Sign up" in the banner, create an account — the modal should close and your tasks should carry over.
+5. Log out — the tracker should stay visible with the guest banner, showing the same local tasks.
+
 ## Google SSO
 
 The app supports sign-in with Google as an alternative to email/password. Both methods coexist — existing password accounts are unaffected. Accounts are matched by email: if the Google account email already exists in the database, that account is used; otherwise a new one is created with `password_hash = NULL`.
