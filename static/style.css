@@ -1,17 +1,17 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:       #f8f5f2;
-  --surface:  #fffffe;
-  --border:   #ccc7c2;
-  --text:     #232323;
-  --dim:      #6e6e6e;
-  --dimmer:   #9c9690;
-  --font:     'IBM Plex Mono', monospace;
-  --accent:   #0a9e9e;
-  --green:    #0a9e9e;
-  --red:      #f45d48;
-  --sel:      #eeeae6;
+  --bg:       #F2F2F7;
+  --surface:  #FFFFFF;
+  --border:   #D1D1D6;
+  --text:     #1C1C1E;
+  --dim:      #636366;
+  --dimmer:   #8E8E93;
+  --font:     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --accent:   #007AFF;
+  --green:    #34C759;
+  --red:      #FF3B30;
+  --sel:      #EBF3FF;
 }
 
 html, body {
@@ -33,7 +33,9 @@ body {
 #auth-screen {
   position: fixed;
   inset: 0;
-  background: rgba(248, 245, 242, 0.97);
+  background: rgba(242, 242, 247, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   display: flex;
   justify-content: center;
   padding-top: 80px;
@@ -215,7 +217,7 @@ body {
 .hd-pomodoro.ringing { animation: pomodoro-ring 0.6s ease; }
 
 .hd-pomodoro-mins {
-  width: 30px;
+  width: 36px;
   background: none;
   border: none;
   border-bottom: 1px solid var(--border);
@@ -298,11 +300,13 @@ body {
 .char-up { position: relative; top: -2px; display: inline-block; }
 
 .search-hint kbd {
-  font-family: var(--font);
-  font-size: 12px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
   color: var(--dim);
+  background: var(--surface);
   border: 1px solid var(--border);
-  padding: 0 4px;
+  border-radius: 3px;
+  padding: 1px 5px;
   line-height: 1.4;
 }
 
@@ -387,7 +391,8 @@ body {
 .task-row.running .t-name { color: var(--text); font-weight: 500; }
 
 .t-time {
-  font-size: 15px;
+  font-size: 14px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
   color: var(--dim);
   font-variant-numeric: tabular-nums;
   min-width: 84px;
@@ -453,6 +458,7 @@ body {
   display: flex;
   gap: 16px;
   font-size: 13px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
   color: var(--dim);
   padding: 3px 60px 3px 0;
 }
@@ -522,6 +528,7 @@ body {
 
 .total-time {
   font-size: 13px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
   color: var(--dim);
   font-variant-numeric: tabular-nums;
 }
@@ -580,6 +587,7 @@ body {
 
 .day-total {
   font-size: 13px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
   color: var(--dimmer);
   font-variant-numeric: tabular-nums;
   min-width: 84px;
@@ -615,6 +623,7 @@ body {
   min-width: 84px;
   text-align: right;
   flex-shrink: 0;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
   font-variant-numeric: tabular-nums;
   margin-right: 42px; /* mirrors gap(14px) + chevron(28px) — aligns with day-total */
 }
