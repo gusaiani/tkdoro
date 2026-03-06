@@ -428,6 +428,7 @@ body {
   cursor: pointer;
   padding: 2px 4px;
   flex-shrink: 0;
+  margin-right: -28px;
   transition: opacity 0.1s;
   line-height: 1;
 }
@@ -515,7 +516,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6px 60px 6px 22px;
+  padding: 6px 48px 6px 22px;
   border-bottom: 2px solid var(--border);
 }
 
@@ -638,6 +639,7 @@ body {
   font-family: var(--font);
   font-size: 11px;
   cursor: pointer;
+  margin-right: -24px;
   padding: 0 2px;
   transition: opacity 0.1s;
   line-height: 1;
@@ -669,7 +671,7 @@ body {
   color: var(--text);
   font-family: var(--font);
   font-size: 14px;
-  padding: 6px 0 8px 22px;
+  padding: 6px 0 14px 22px;
   caret-color: var(--accent);
   margin-bottom: 4px;
   transition: border-color 0.15s;
@@ -684,7 +686,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 0 6px 22px;
+  padding: 6px 0 9px 22px;
   border-bottom: 1px solid var(--border);
   font-size: 14px;
 }
