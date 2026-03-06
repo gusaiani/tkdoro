@@ -900,7 +900,9 @@ function beginEditSession(entry, taskId, sessionStart) {
 
 // ── Click ─────────────────────────────────────────────────────────────────────
 // Prevent mousedown from blurring the search input — click still fires normally
-listEl.addEventListener('mousedown', e => { e.preventDefault(); });
+listEl.addEventListener('mousedown', e => {
+  if (!e.target.closest('.sl-time-input')) e.preventDefault();
+});
 
 listEl.addEventListener('click', e => {
   const slRange = e.target.closest('.sl-range');
