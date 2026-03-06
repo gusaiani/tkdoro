@@ -15,7 +15,7 @@
     fill="#f45d48"
     text-anchor="middle"
     letter-spacing="-2"
-  >Tikkit</text>
+  >Doing It</text>
 
   <!-- Tagline -->
   <text
@@ -47,5 +47,5 @@
     font-size="18"
     fill="#b0aaa4"
     text-anchor="end"
-  >tikkit.fly.dev</text>
+  >doingit.online</text>
 </svg>

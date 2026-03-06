@@ -24,8 +24,8 @@ DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost/tt")
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_DAYS = 30
 RESEND_API_KEY       = os.getenv("RESEND_API_KEY", "")
-RESEND_FROM          = os.getenv("RESEND_FROM", "noreply@tkdoro.live")
-APP_URL              = os.getenv("APP_URL", "https://tkdoro.live")
+RESEND_FROM          = os.getenv("RESEND_FROM", "noreply@doingit.online")
+APP_URL              = os.getenv("APP_URL", "https://doingit.online")
 RESET_EXPIRE_MINUTES = 60
 GOOGLE_CLIENT_ID     = os.getenv("GOOGLE_CLIENT_ID", "")
 
