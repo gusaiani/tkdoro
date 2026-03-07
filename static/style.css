@@ -266,12 +266,9 @@ body {
 .search-row:focus-within { border-bottom-color: var(--accent); }
 
 .search-prompt {
-  color: var(--accent);
-  font-weight: 700;
-  font-size: 22px;
   flex-shrink: 0;
-  padding-bottom: 10px;
-  padding-top: 8px;
+  line-height: 0;
+  padding: 6px 2px 6px 0;
   user-select: none;
   pointer-events: none;
 }
