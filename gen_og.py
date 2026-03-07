@@ -4,12 +4,11 @@ import os
 
 W, H = 1200, 630
 
-# Colours (from style.css)
-BG      = "#f8f5f2"
-RED     = "#f45d48"
-TEAL    = "#0a9e9e"
-DIMMER  = "#b0aaa4"
-BORDER  = "#e0dbd6"
+# Colours (matching app)
+BG     = "#FCFBFB"
+RED    = "#FF3B30"
+TEXT   = "#1C1C1E"
+DIM    = "#6E6E73"
 
 def hex2rgb(h):
     h = h.lstrip("#")
@@ -18,16 +17,14 @@ def hex2rgb(h):
 img  = Image.new("RGB", (W, H), hex2rgb(BG))
 draw = ImageDraw.Draw(img)
 
-# Subtle horizontal rule across the middle
-draw.line([(0, H//2), (W, H//2)], fill=hex2rgb(BORDER), width=1)
-
-# ── Try to load IBM Plex Mono; fall back to default ──────────────────────────
+# ── Font loader ────────────────────────────────────────────────────────────────
 def font(size, bold=False):
     candidates = [
-        f"/opt/anaconda3/lib/python3.12/site-packages/matplotlib/mpl-data/fonts/ttf/DejaVuSansMono{'Bold' if bold else ''}.ttf",
-        "/System/Library/Fonts/Supplemental/Courier New Bold.ttf" if bold else "/System/Library/Fonts/Supplemental/Courier New.ttf",
-        "/Library/Fonts/IBM Plex Mono Bold.ttf" if bold else "/Library/Fonts/IBM Plex Mono.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+        # San Francisco (macOS system font)
+        "/System/Library/Fonts/SFNS.ttf",
+        # CI fallbacks for Linux (GitHub Actions)
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/opt/anaconda3/lib/python3.12/site-packages/matplotlib/mpl-data/fonts/ttf/DejaVuSans-Bold.ttf" if bold else "/opt/anaconda3/lib/python3.12/site-packages/matplotlib/mpl-data/fonts/ttf/DejaVuSans.ttf",
     ]
     for path in candidates:
         if os.path.exists(path):
@@ -37,49 +34,38 @@ def font(size, bold=False):
                 pass
     return ImageFont.load_default()
 
-f_logo    = font(108, bold=True)
-f_tag     = font(28)
-f_hint    = font(22)
-f_url     = font(18)
+f_logo = font(120, bold=True)
+f_tag  = font(38)
+f_url  = font(31)
 
-# ── Wordmark ─────────────────────────────────────────────────────────────────
-logo_text = "Doing It"
+# ── Beaver mascot (centered) ──────────────────────────────────────────────────
+beaver_path = os.path.join(os.path.dirname(__file__), "static", "beaver.png")
+beaver = Image.open(beaver_path).convert("RGBA")
+bh = 350
+bw = int(beaver.width * bh / beaver.height)
+beaver = beaver.resize((bw, bh), Image.LANCZOS)
+bx = (W // 2 - bw) // 2
+by = (H - bh) // 2
+img.paste(beaver, (bx, by), beaver)
+
+# ── Right column: wordmark + tagline ─────────────────────────────────────────
+center_x = (bx + bw + W) // 2
+
+logo_text = "DOING IT"
 bb = draw.textbbox((0, 0), logo_text, font=f_logo)
 lw = bb[2] - bb[0]
-draw.text(((W - lw) // 2, 195), logo_text, font=f_logo, fill=hex2rgb(RED))
+draw.text((center_x - lw // 2, 210), logo_text, font=f_logo, fill=hex2rgb(RED))
 
-# ── Tagline ───────────────────────────────────────────────────────────────────
-tag_text = "keyboard-driven time tracking"
+tag_text = "From to-do to done, tracked"
 bb = draw.textbbox((0, 0), tag_text, font=f_tag)
 tw = bb[2] - bb[0]
-draw.text(((W - tw) // 2, 330), tag_text, font=f_tag, fill=hex2rgb(TEAL))
+draw.text((center_x - tw // 2, 335), tag_text, font=f_tag, fill=hex2rgb(TEXT))
 
-# ── Prompt hint ───────────────────────────────────────────────────────────────
-# Draw the coloured parts separately so prompt ">" and "↵" are teal
-hint_parts = [
-    (">", TEAL,   True),
-    ("  deep work   ", DIMMER, False),
-    ("enter", TEAL,   True),
-    (" to track", DIMMER, False),
-]
-total_w = 0
-for text, _, bold in hint_parts:
-    f = font(22, bold=bold)
-    bb = draw.textbbox((0, 0), text, font=f)
-    total_w += bb[2] - bb[0]
-
-x = (W - total_w) // 2
-y = 415
-for text, color, bold in hint_parts:
-    f = font(22, bold=bold)
-    draw.text((x, y), text, font=f, fill=hex2rgb(color))
-    bb = draw.textbbox((0, 0), text, font=f)
-    x += bb[2] - bb[0]
-
-# ── URL bottom-right ──────────────────────────────────────────────────────────
+# ── URL below tagline, centered in right column ───────────────────────────────
 url_text = "doingit.online"
 bb = draw.textbbox((0, 0), url_text, font=f_url)
-draw.text((W - bb[2] - bb[0] - 40, H - 40), url_text, font=f_url, fill=hex2rgb(DIMMER))
+uw = bb[2] - bb[0]
+draw.text((center_x - uw // 2, 390), url_text, font=f_url, fill=hex2rgb(DIM))
 
 out = os.path.join(os.path.dirname(__file__), "static", "og.png")
 img.save(out, "PNG", optimize=True)

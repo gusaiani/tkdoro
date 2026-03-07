@@ -258,19 +258,9 @@ async def post_data(
     return Response(status_code=204)
 
 
-@app.get("/favicon.svg")
-def favicon():
-    return FileResponse("favicon.svg", media_type="image/svg+xml")
-
-
-@app.get("/favicon-local.svg")
+@app.get("/favicon-local.png")
 def favicon_local():
-    return FileResponse("favicon-local.svg", media_type="image/svg+xml")
-
-
-@app.get("/favicon-local.svg")
-def favicon_local():
-    return FileResponse("favicon-local.svg", media_type="image/svg+xml")
+    return FileResponse("favicon-local.png", media_type="image/png")
 
 
 @app.get("/")
