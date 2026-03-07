@@ -273,6 +273,12 @@ body {
   pointer-events: none;
 }
 
+.beaver-mascot {
+  height: 42px;
+  width: auto;
+  display: block;
+}
+
 #search {
   flex: 1;
   background: transparent;
