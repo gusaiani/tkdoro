@@ -2,7 +2,7 @@
 
 A minimal, keyboard-driven time tracker inspired by Notational Velocity.
 
-![tt screenshot](screenshot.png)
+![Doing It](static/readme-cover.png)
 
 ## Running locally
 
