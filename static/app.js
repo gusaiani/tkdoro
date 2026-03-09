@@ -856,6 +856,30 @@ function renderLater() {
   `).join('');
 }
 
+// ── Hint row ──────────────────────────────────────────────────────────────────
+const hintRowEl = document.getElementById('search-hint');
+function updateHintRow() {
+  const count       = filtered().length;
+  const searchFocused = document.activeElement === searchEl;
+  const hasRunning  = !!runningTask();
+
+  const parts = [];
+  if (count >= 1) {
+    const last = count >= 10 ? '0' : String(count);
+    const label = count === 1 ? '1' : `1-${last}`;
+    parts.push(`<kbd>${label}</kbd> start`);
+  }
+  parts.push(`<kbd>n</kbd> new`);
+  if (searchFocused) {
+    parts.push(`<kbd><span class="char-up">↵</span></kbd> start / stop`);
+    parts.push(`<kbd>↑↓</kbd> select`);
+    parts.push(`<kbd>tab</kbd> log`);
+  }
+  if (hasRunning) parts.push(`<kbd>esc</kbd> clear`);
+
+  hintRowEl.innerHTML = parts.join(' &nbsp;·&nbsp; ');
+}
+
 // ── Render ────────────────────────────────────────────────────────────────────
 function render() {
   const q      = query();
@@ -875,21 +899,7 @@ function render() {
   const exactMatch = tasks.find(t => t.name.toLowerCase() === qLC);
   document.getElementById('search-create-hint').classList.toggle('visible', !!(q && !exactMatch));
 
-  // update number-key hint to reflect how many tasks are actually visible
-  const numHintEl = document.getElementById('num-shortcut-hint');
-  if (numHintEl) {
-    const count = tasks.length;
-    if (count >= 2) {
-      const last = count >= 10 ? '0' : String(count);
-      numHintEl.textContent = `1-${last}`;
-      numHintEl.parentElement.style.display = '';
-    } else if (count === 1) {
-      numHintEl.textContent = '1';
-      numHintEl.parentElement.style.display = '';
-    } else {
-      numHintEl.parentElement.style.display = 'none';
-    }
-  }
+  updateHintRow();
 
   // empty state
   if (!q && tasks.length === 0) {
@@ -964,6 +974,9 @@ document.getElementById('search-create-hint').addEventListener('mousedown', asyn
 });
 
 searchEl.addEventListener('input', () => { selIdx = -1; render(); });
+
+searchEl.addEventListener('focus', updateHintRow);
+searchEl.addEventListener('blur',  updateHintRow);
 
 searchEl.addEventListener('blur', () => {
   searchEl.value = '';
