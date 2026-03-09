@@ -443,11 +443,12 @@ document.getElementById('hd-signin').addEventListener('click', () => {
 });
 
 // ── Pomodoro ──────────────────────────────────────────────────────────────────
-let pomodoroActive = false;
+let pomodoroActive = localStorage.getItem('tt_pomodoro_active') === 'true';
 let pomodoroTimer  = null;
 
 const pomodoroBtn  = document.getElementById('hd-pomodoro');
 const pomodoroMins = document.getElementById('hd-pomodoro-mins');
+pomodoroBtn.classList.toggle('active', pomodoroActive);
 
 // Persist the minutes value across sessions
 pomodoroMins.value = localStorage.getItem('tt_pomodoro_mins') ?? '25';
@@ -459,6 +460,7 @@ pomodoroMins.addEventListener('change', () => {
 
 pomodoroBtn.addEventListener('click', () => {
   pomodoroActive = !pomodoroActive;
+  localStorage.setItem('tt_pomodoro_active', pomodoroActive);
   pomodoroBtn.classList.toggle('active', pomodoroActive);
   if (pomodoroActive) {
     getAudioCtx().resume(); // warm up while we have a user gesture
