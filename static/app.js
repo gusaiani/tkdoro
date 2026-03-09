@@ -960,12 +960,13 @@ function render() {
     listEl.appendChild(li);
   });
 
-  // total row
+  // total row — temporarily show list while user is searching
+  const listShown = tasksVisible || !!q;
   const hasData = data.tasks.some(t => t.sessions.some(s => isToday(s.start)));
   totalRow.style.display = hasData ? 'flex' : 'none';
-  listEl.style.display   = tasksVisible ? '' : 'none';
+  listEl.style.display   = listShown ? '' : 'none';
   if (hasData) {
-    if (!tasksVisible && running) {
+    if (!listShown && running) {
       const sessionStart = running.sessions.find(s => !s.end).start;
       totalRow.innerHTML = `
         <span class="total-label">today &nbsp;·&nbsp; <span class="total-active-name">${esc(running.name)}</span></span>
@@ -979,7 +980,7 @@ function render() {
       totalRow.innerHTML = `
         <span class="total-label">today</span>
         <span class="total-time" id="total-time">${fmt(allTodayMs())}</span>
-        <span class="total-expand">${tasksVisible ? '▲' : '▼'}</span>`;
+        <span class="total-expand">${listShown ? '▲' : '▼'}</span>`;
     }
   }
 
