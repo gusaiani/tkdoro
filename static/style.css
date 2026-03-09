@@ -787,6 +787,13 @@ body {
 /* ── Upgrade header button ── */
 .hd-upgrade { color: var(--accent) !important; }
 .hd-manage  { color: var(--green)  !important; }
+.hd-vip {
+  color: #b8860b;
+  font-family: var(--font);
+  font-size: 13px;
+  cursor: default;
+  user-select: none;
+}
 
 /* ── Billing success banner ── */
 #billing-success-banner {

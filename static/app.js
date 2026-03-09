@@ -197,8 +197,9 @@ async function fetchBillingStatus() {
 function updateBillingUI() {
   const token = localStorage.getItem('tt_token');
   const subscribed = subscriptionStatus === 'active' || isComped;
-  document.getElementById('hd-upgrade').style.display = (token && !subscribed) ? '' : 'none';
-  document.getElementById('hd-manage').style.display  = (token && subscribed)  ? '' : 'none';
+  document.getElementById('hd-upgrade').style.display = (token && !subscribed)           ? '' : 'none';
+  document.getElementById('hd-manage').style.display  = (token && subscribed && !isComped) ? '' : 'none';
+  document.getElementById('hd-vip').style.display     = (token && isComped)               ? '' : 'none';
 }
 
 function showUpgradeModal(message) {
