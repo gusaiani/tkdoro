@@ -685,13 +685,13 @@ function liveUpdate() {
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let selIdx  = -1;
+let tasksVisible = localStorage.getItem('tt_tasks_visible') !== 'false';
 const expanded     = new Set();
 const expandedDays = new Set();
 
 const searchEl   = document.getElementById('search');
 const listEl     = document.getElementById('task-list');
 const totalRow   = document.getElementById('total-row');
-const totalTime  = document.getElementById('total-time');
 const hdRunning  = document.getElementById('hd-running');
 const hdDate     = document.getElementById('hd-date');
 const historyEl  = document.getElementById('history');
@@ -960,10 +960,28 @@ function render() {
     listEl.appendChild(li);
   });
 
-  // total
+  // total row
   const hasData = data.tasks.some(t => t.sessions.some(s => isToday(s.start)));
   totalRow.style.display = hasData ? 'flex' : 'none';
-  totalTime.textContent  = fmt(allTodayMs());
+  listEl.style.display   = tasksVisible ? '' : 'none';
+  if (hasData) {
+    if (!tasksVisible && running) {
+      const sessionStart = running.sessions.find(s => !s.end).start;
+      totalRow.innerHTML = `
+        <span class="total-label">today &nbsp;·&nbsp; <span class="total-active-name">${esc(running.name)}</span></span>
+        <span class="total-time total-time-running">
+          <span class="t-time-label">session</span> <span data-live-session="${sessionStart}">${fmt(Date.now() - sessionStart)}</span>
+          <span class="t-time-sep">·</span>
+          <span class="t-time-label">today</span> <span id="total-time">${fmt(allTodayMs())}</span>
+        </span>
+        <span class="total-expand">▼</span>`;
+    } else {
+      totalRow.innerHTML = `
+        <span class="total-label">today</span>
+        <span class="total-time" id="total-time">${fmt(allTodayMs())}</span>
+        <span class="total-expand">${tasksVisible ? '▲' : '▼'}</span>`;
+    }
+  }
 
   renderHistory();
   renderLater();
@@ -1183,6 +1201,14 @@ document.addEventListener('keydown', async e => {
 });
 
 document.querySelector('.search-prompt').addEventListener('click', () => searchEl.focus());
+
+totalRow.addEventListener('click', e => {
+  if (e.target.closest('.total-expand')) {
+    tasksVisible = !tasksVisible;
+    localStorage.setItem('tt_tasks_visible', tasksVisible);
+    render();
+  }
+});
 
 // ── Later input ───────────────────────────────────────────────────────────────
 document.getElementById('later-input').addEventListener('keydown', e => {

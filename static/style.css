@@ -446,7 +446,7 @@ body {
   cursor: pointer;
   padding: 2px 4px;
   flex-shrink: 0;
-  margin-right: -28px;
+  margin-right: -33px;
   transition: opacity 0.1s;
   line-height: 1;
 }
@@ -532,17 +532,23 @@ body {
 /* ── Total ── */
 .total-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 6px 48px 6px 10px;
+  gap: 14px;
+  padding: 6px 0 6px 10px;
   border-bottom: 2px solid var(--border);
+  cursor: pointer;
+  user-select: none;
 }
 
 .total-label {
+  flex: 1;
   font-size: 12px;
   color: var(--dimmer);
   text-transform: uppercase;
   letter-spacing: 0.15em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .total-time {
@@ -555,6 +561,37 @@ body {
 /* ── History ── */
 #history {
   margin-top: 40px;
+}
+
+.total-expand {
+  font-size: 10px;
+  color: var(--dimmer);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.1s, background 0.1s;
+}
+
+.total-row:hover .total-expand { color: var(--dim); }
+.total-expand:hover { background: var(--sel); color: var(--text) !important; }
+
+.total-active-name {
+  color: var(--text);
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.total-time-running {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 13px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
 }
 
 .week-total-row { border-bottom: 2px solid var(--border); }
