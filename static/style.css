@@ -359,13 +359,13 @@ body {
 .task-main {
   display: flex;
   align-items: center;
-  padding: 13px 0;
+  padding: 13px 0 13px 10px;
   gap: 14px;
   cursor: pointer;
   user-select: none;
 }
 
-.task-row.selected .task-main { padding-left: 14px; }
+.task-row.selected .task-main { padding-left: 13px; }
 
 /* running indicator dot */
 .t-dot {
@@ -373,10 +373,10 @@ body {
   height: 8px;
   flex-shrink: 0;
   background: var(--green);
-  visibility: hidden;
+  display: none;
 }
 
-.task-row.running .t-dot { visibility: visible; }
+.task-row.running .t-dot { display: block; }
 
 @keyframes blink {
   0%, 49% { opacity: 1; }
@@ -523,7 +523,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6px 48px 6px 22px;
+  padding: 6px 48px 6px 10px;
   border-bottom: 2px solid var(--border);
 }
 
@@ -554,7 +554,7 @@ body {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 8px 10px 8px 22px;
+  padding: 8px 10px 8px 10px;
   border-top: 1px solid var(--border);
   cursor: pointer;
   user-select: none;
@@ -664,7 +664,7 @@ body {
   color: var(--dimmer);
   text-transform: uppercase;
   letter-spacing: 0.15em;
-  padding: 0 0 8px 22px;
+  padding: 0 0 8px 10px;
   margin-bottom: 10px;
   border-bottom: 2px solid var(--border);
 }

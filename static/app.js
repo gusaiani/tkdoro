@@ -911,8 +911,8 @@ function render() {
 
     li.innerHTML = `
       <div class="task-main">
-        <span class="t-dot"></span>
         <span class="t-name">${esc(task.name)}</span>
+        <span class="t-dot"></span>
         <span class="t-time"${isRunning ? ` data-live="${task.id}"` : ''}>${fmt(taskTodayMs(task))}</span>
         <span class="t-expand">${hasLog ? (isExp ? '▲' : '▼') : ''}</span>
         <button class="t-del" data-id="${task.id}" tabindex="-1">✕</button>
