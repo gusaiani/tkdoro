@@ -678,7 +678,7 @@ body {
   color: var(--text);
   font-family: var(--font);
   font-size: 14px;
-  padding: 6px 0 14px 22px;
+  padding: 6px 0 14px 10px;
   caret-color: var(--accent);
   margin-bottom: 4px;
   transition: border-color 0.15s;
@@ -693,7 +693,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 0 9px 22px;
+  padding: 6px 0 9px 10px;
   border-bottom: 1px solid var(--border);
   font-size: 14px;
 }
