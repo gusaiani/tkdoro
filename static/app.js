@@ -656,9 +656,9 @@ function fmtTabTimer(ms) {
 
 function updateTabTitle() {
   const cur = runningTask();
-  if (!cur) { document.title = 'Do It'; return; }
+  if (!cur) { document.title = 'Doing It'; return; }
   const session = cur.sessions.find(s => !s.end);
-  if (!session) { document.title = 'Do It'; return; }
+  if (!session) { document.title = 'Doing It'; return; }
   document.title = `${fmtTabTimer(Date.now() - session.start)} · ${cur.name} · Doing It`;
 }
 
