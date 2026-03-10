@@ -16,7 +16,7 @@
   <meta property="og:url" content="https://doingit.online/">
   <meta property="og:site_name" content="Doing It">
   <meta property="og:title" content="Doing It — from to-do to done, tracked.">
-  <meta property="og:description" content="The fastest time tracker. Type a task, press Enter to start recording. No menus, no friction. See where your day actually went.">
+  <meta property="og:description" content="The easiest To Do → Doing → Done tracker. Type a task, press Enter to start. No menus, no friction.">
   <meta property="og:image" content="https://doingit.online/static/og.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
@@ -25,7 +25,7 @@
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Doing It — from to-do to done, tracked.">
-  <meta name="twitter:description" content="The fastest time tracker. Type a task, press Enter to start. No menus, no friction.">
+  <meta name="twitter:description" content="The easiest To Do → Doing → Done tracker. Type a task, press Enter to start. No menus, no friction.">
   <meta name="twitter:image" content="https://doingit.online/static/og.png">
   <link rel="icon" type="image/png" href="/static/beaver.png">
   <script>
@@ -51,7 +51,7 @@
   <div class="auth-logo">Doing It</div>
 
   <div id="auth-login-view">
-    <p class="auth-pitch">A minimal time tracker with the easiest Pomodoro.</p>
+    <p class="auth-pitch">The easiest To Do → Doing → Done tracker.</p>
     <p class="auth-pitch-sub">Try it. It's free.</p>
     <div class="auth-field">
       <input id="auth-email" type="email" placeholder="email" autocomplete="email" spellcheck="false">
@@ -98,6 +98,14 @@
     <span class="hd-sep">/</span>
     <button class="hd-logout" id="hd-signin" style="display:none">sign in</button>
     <button class="hd-logout" id="hd-logout" style="display:none">logout</button>
+    <button class="hd-logout hd-upgrade" id="hd-upgrade" style="display:none">upgrade: it’s $1.49 a month…</button>
+    <button class="hd-logout hd-manage" id="hd-manage" style="display:none">pro ✓</button>
+    <span class="hd-vip" id="hd-vip" style="display:none">♛ vip</span>
+  </div>
+
+  <div id="billing-success-banner" style="display:none">
+    You're now subscribed — enjoy unlimited sessions.
+    <button id="billing-success-close">✕</button>
   </div>
 
   <div id="guest-banner">
@@ -106,22 +114,13 @@
   </div>
 
   <div class="search-row">
-    <span class="search-prompt"><img src="/static/beaver.png" alt="" class="beaver-mascot"></span>
+    <span class="search-prompt"><img src="/static/beaver-small.png" alt="" class="beaver-mascot"></span>
     <input id="search" type="text" placeholder="task name…" autocomplete="off" spellcheck="false">
     <span id="search-create-hint"><span class="hint-return">↵</span> new</span>
   </div>
-  <div class="search-hint">
-    <kbd>n</kbd> new &nbsp;·&nbsp;
-    <kbd><span class="char-up">↵</span></kbd> start / stop &nbsp;·&nbsp;
-    <kbd>↑↓</kbd> select &nbsp;·&nbsp;
-    <kbd>tab</kbd> log &nbsp;·&nbsp;
-    <kbd>esc</kbd> clear
-  </div>
+  <div class="search-hint" id="search-hint"></div>
 
-  <div class="total-row" id="total-row" style="display:none">
-    <span class="total-label">today</span>
-    <span class="total-time" id="total-time"></span>
-  </div>
+  <div class="total-row" id="total-row" style="display:none"></div>
   <ul id="task-list"></ul>
 
   <div id="history"></div>
@@ -134,12 +133,27 @@
 
 </div>
 <footer class="share-footer">
-  <span class="share-label">share</span>
-  <a class="share-link" href="https://twitter.com/intent/tweet?text=Doing+It+%E2%80%94+the+fastest+keyboard-driven+time+tracker&url=https%3A%2F%2Fdoingit.online" target="_blank" rel="noopener">𝕏</a>
-  <a class="share-link" href="https://news.ycombinator.com/submitlink?u=https%3A%2F%2Fdoingit.online&t=Doing+It+%E2%80%93+keyboard-driven+time+tracking" target="_blank" rel="noopener">HN</a>
-  <a class="share-link" href="https://www.producthunt.com/posts/new" target="_blank" rel="noopener">PH</a>
-  <a class="share-link" href="https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fdoingit.online" target="_blank" rel="noopener">in</a>
+  <div class="footer-inner">
+    <span class="footer-contact">Questions, suggestions? <a href="mailto:gustavo@poe.ma">Write Gustavo Saiani</a> / <a href="https://www.linkedin.com/in/gusaiani/" target="_blank" rel="noopener">I'm looking for my next job!</a></span>
+    <div class="footer-share">
+      <span class="share-label">share</span>
+      <a class="share-link" href="https://twitter.com/intent/tweet?text=Doing%20It%20%E2%80%94%20the%20easiest%20To%20Do%20%E2%86%92%20Doing%20%E2%86%92%20Done%20tracker&url=https%3A%2F%2Fdoingit.online" target="_blank" rel="noopener">𝕏</a>
+      <a class="share-link" href="https://news.ycombinator.com/submitlink?u=https%3A%2F%2Fdoingit.online&t=Show%20HN%3A%20Doing%20It%20%E2%80%93%20the%20easiest%20To%20Do%20%E2%86%92%20Doing%20%E2%86%92%20Done%20tracker" target="_blank" rel="noopener">HN</a>
+      <a class="share-link" href="https://www.producthunt.com/posts/new" target="_blank" rel="noopener">PH</a>
+      <a class="share-link" href="https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fdoingit.online" target="_blank" rel="noopener">in</a>
+    </div>
+  </div>
 </footer>
+<div id="upgrade-modal" style="display:none">
+  <div class="upgrade-backdrop" id="upgrade-backdrop"></div>
+  <div class="upgrade-box">
+    <p class="upgrade-message" id="upgrade-message">You've reached your 5 free sessions for today.</p>
+    <p class="upgrade-sub">Upgrade for unlimited sessions — 30-day free trial.</p>
+    <button class="upgrade-cta" id="upgrade-cta">It's $1.49 a month…doing it</button>
+    <button class="upgrade-dismiss" id="upgrade-dismiss">maybe later</button>
+  </div>
+</div>
+
 <script src="/static/app.js"></script>
 </body>
 </html>

@@ -3,6 +3,8 @@ import os
 import secrets
 import time
 
+import stripe
+
 from dotenv import load_dotenv
 load_dotenv()
 from datetime import datetime, timedelta, timezone
@@ -27,7 +29,13 @@ RESEND_API_KEY       = os.getenv("RESEND_API_KEY", "")
 RESEND_FROM          = os.getenv("RESEND_FROM", "noreply@doingit.online")
 APP_URL              = os.getenv("APP_URL", "https://doingit.online")
 RESET_EXPIRE_MINUTES = 60
-GOOGLE_CLIENT_ID     = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_ID       = os.getenv("GOOGLE_CLIENT_ID", "")
+STRIPE_SECRET_KEY      = os.getenv("STRIPE_SECRET_KEY", "")
+STRIPE_WEBHOOK_SECRET  = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+STRIPE_PRICE_ID        = os.getenv("STRIPE_PRICE_ID", "")
+
+if STRIPE_SECRET_KEY:
+    stripe.api_key = STRIPE_SECRET_KEY
 
 bearer = HTTPBearer()
 
@@ -83,6 +91,12 @@ def init_db():
                             used       BOOLEAN NOT NULL DEFAULT FALSE
                         )
                     """)
+                    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT")
+                    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'free'")
+                    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_id TEXT")
+                    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_current_period_end TIMESTAMPTZ")
+                    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_started_at TIMESTAMPTZ")
+                    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_comped BOOLEAN DEFAULT FALSE")
             return
         except psycopg2.OperationalError:
             if attempt == 9:
@@ -256,6 +270,177 @@ async def post_data(
         (user_id, body.decode()),
     )
     return Response(status_code=204)
+
+
+def count_today_sessions(tasks_json: str) -> int:
+    from datetime import date
+    today = date.today().isoformat()
+    try:
+        tasks_data = json.loads(tasks_json)
+        count = 0
+        for task in tasks_data.get("tasks", []):
+            for session in task.get("sessions", []):
+                start_ts = session.get("start")
+                if start_ts:
+                    session_date = datetime.fromtimestamp(start_ts / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
+                    if session_date == today:
+                        count += 1
+        return count
+    except Exception:
+        return 0
+
+
+@app.post("/sessions/start")
+def session_start(
+    user_id: Annotated[int, Depends(current_user_id)],
+    db: Annotated[psycopg2.extensions.cursor, Depends(get_db)],
+):
+    db.execute(
+        "SELECT u.subscription_status, u.is_comped, ud.tasks_json "
+        "FROM users u LEFT JOIN user_data ud ON u.id = ud.user_id "
+        "WHERE u.id = %s",
+        (user_id,),
+    )
+    row = db.fetchone()
+    if not row:
+        raise HTTPException(status_code=404)
+    sub_status = row["subscription_status"] or "free"
+    is_comped = row["is_comped"] or False
+    if is_comped or sub_status == "active":
+        return {"ok": True}
+    today_count = count_today_sessions(row["tasks_json"] or '{"tasks":[]}')
+    if today_count >= 5:
+        raise HTTPException(
+            status_code=402,
+            detail="You've reached your 5 free sessions for today. Upgrade for unlimited.",
+        )
+    return {"ok": True}
+
+
+class CheckoutRequest(BaseModel):
+    guest_trial_start: int | None = None
+
+
+@app.post("/billing/checkout")
+def billing_checkout(
+    req: CheckoutRequest,
+    user_id: Annotated[int, Depends(current_user_id)],
+    db: Annotated[psycopg2.extensions.cursor, Depends(get_db)],
+):
+    db.execute("SELECT email, stripe_customer_id FROM users WHERE id = %s", (user_id,))
+    row = db.fetchone()
+    if not row:
+        raise HTTPException(status_code=404)
+    customer_id = row["stripe_customer_id"]
+    if not customer_id:
+        customer = stripe.Customer.create(email=row["email"], metadata={"user_id": str(user_id)})
+        customer_id = customer.id
+        db.execute("UPDATE users SET stripe_customer_id = %s WHERE id = %s", (customer_id, user_id))
+    trial_end = None
+    if req.guest_trial_start:
+        guest_dt = datetime.fromtimestamp(req.guest_trial_start / 1000, tz=timezone.utc)
+        trial_end_dt = guest_dt + timedelta(days=30)
+        if trial_end_dt > datetime.now(timezone.utc):
+            trial_end = int(trial_end_dt.timestamp())
+            db.execute("UPDATE users SET trial_started_at = %s WHERE id = %s", (guest_dt, user_id))
+    checkout_kwargs: dict = dict(
+        customer=customer_id,
+        mode="subscription",
+        line_items=[{"price": STRIPE_PRICE_ID, "quantity": 1}],
+        success_url=f"{APP_URL}/billing/success",
+        cancel_url=f"{APP_URL}/",
+    )
+    if trial_end:
+        checkout_kwargs["subscription_data"] = {"trial_end": trial_end}
+    else:
+        checkout_kwargs["subscription_data"] = {"trial_period_days": 30}
+    session = stripe.checkout.Session.create(**checkout_kwargs)
+    return {"url": session.url}
+
+
+@app.get("/billing/portal")
+def billing_portal(
+    user_id: Annotated[int, Depends(current_user_id)],
+    db: Annotated[psycopg2.extensions.cursor, Depends(get_db)],
+):
+    db.execute("SELECT stripe_customer_id FROM users WHERE id = %s", (user_id,))
+    row = db.fetchone()
+    if not row or not row["stripe_customer_id"]:
+        raise HTTPException(status_code=400, detail="No billing account found")
+    portal = stripe.billing_portal.Session.create(
+        customer=row["stripe_customer_id"],
+        return_url=f"{APP_URL}/",
+    )
+    return {"url": portal.url}
+
+
+@app.get("/billing/status")
+def billing_status(
+    user_id: Annotated[int, Depends(current_user_id)],
+    db: Annotated[psycopg2.extensions.cursor, Depends(get_db)],
+):
+    db.execute("SELECT subscription_status, is_comped FROM users WHERE id = %s", (user_id,))
+    row = db.fetchone()
+    if not row:
+        raise HTTPException(status_code=404)
+    return {
+        "subscription_status": row["subscription_status"] or "free",
+        "is_comped": row["is_comped"] or False,
+    }
+
+
+@app.post("/billing/webhook")
+async def billing_webhook(request: Request, db=Depends(get_db)):
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature", "")
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid webhook signature")
+    et = event["type"]
+    if et == "checkout.session.completed":
+        obj = event["data"]["object"]
+        db.execute(
+            "UPDATE users SET subscription_status = 'active', subscription_id = %s "
+            "WHERE stripe_customer_id = %s",
+            (obj.get("subscription"), obj["customer"]),
+        )
+    elif et == "invoice.payment_succeeded":
+        obj = event["data"]["object"]
+        period_end = datetime.fromtimestamp(obj.get("period_end", 0), tz=timezone.utc)
+        db.execute(
+            "UPDATE users SET subscription_status = 'active', subscription_current_period_end = %s "
+            "WHERE subscription_id = %s",
+            (period_end, obj.get("subscription")),
+        )
+    elif et == "invoice.payment_failed":
+        obj = event["data"]["object"]
+        db.execute(
+            "UPDATE users SET subscription_status = 'past_due' WHERE subscription_id = %s",
+            (obj.get("subscription"),),
+        )
+    elif et == "customer.subscription.deleted":
+        obj = event["data"]["object"]
+        db.execute(
+            "UPDATE users SET subscription_status = 'canceled', subscription_id = NULL "
+            "WHERE subscription_id = %s",
+            (obj["id"],),
+        )
+    elif et == "customer.subscription.updated":
+        obj = event["data"]["object"]
+        new_status = "active" if obj["status"] in ("active", "trialing") else obj["status"]
+        period_end = datetime.fromtimestamp(obj["current_period_end"], tz=timezone.utc)
+        db.execute(
+            "UPDATE users SET subscription_status = %s, subscription_current_period_end = %s "
+            "WHERE subscription_id = %s",
+            (new_status, period_end, obj["id"]),
+        )
+    return {"ok": True}
+
+
+@app.get("/billing/success")
+def billing_success():
+    return FileResponse("index.html")
 
 
 @app.get("/favicon-local.png")

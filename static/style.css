@@ -270,7 +270,7 @@ body {
   line-height: 0;
   padding: 6px 2px 6px 0;
   user-select: none;
-  pointer-events: none;
+  cursor: pointer;
 }
 
 .beaver-mascot {
@@ -364,13 +364,13 @@ body {
 .task-main {
   display: flex;
   align-items: center;
-  padding: 13px 0;
+  padding: 13px 0 13px 10px;
   gap: 14px;
   cursor: pointer;
   user-select: none;
 }
 
-.task-row.selected .task-main { padding-left: 14px; }
+.task-row.selected .task-main { padding-left: 13px; }
 
 /* running indicator dot */
 .t-dot {
@@ -378,10 +378,10 @@ body {
   height: 8px;
   flex-shrink: 0;
   background: var(--green);
-  visibility: hidden;
+  display: none;
 }
 
-.task-row.running .t-dot { visibility: visible; }
+.task-row.running .t-dot { display: block; }
 
 @keyframes blink {
   0%, 49% { opacity: 1; }
@@ -411,7 +411,18 @@ body {
   flex-shrink: 0;
 }
 
-.task-row.running .t-time { color: var(--accent); }
+.task-row.running .t-time { color: var(--dim); }
+
+.t-time-label {
+  font-family: var(--font);
+  font-size: 11px;
+  color: var(--dimmer);
+  font-variant-numeric: normal;
+}
+.t-time-sep {
+  color: var(--dimmer);
+  margin: 0 2px;
+}
 
 .t-expand {
   font-size: 10px;
@@ -440,7 +451,7 @@ body {
   cursor: pointer;
   padding: 2px 4px;
   flex-shrink: 0;
-  margin-right: -28px;
+  margin-right: -33px;
   transition: opacity 0.1s;
   line-height: 1;
 }
@@ -543,18 +554,24 @@ body {
 /* ── Total ── */
 .total-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 6px 48px 6px 22px;
+  gap: 14px;
+  padding: 6px 0 6px 10px;
   border-bottom: 2px solid var(--border);
-  margin-top: 28px;
+  margin-top: 50px;
+  cursor: pointer;
+  user-select: none;
 }
 
 .total-label {
+  flex: 1;
   font-size: 12px;
   color: var(--dimmer);
   text-transform: uppercase;
   letter-spacing: 0.15em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .total-time {
@@ -569,6 +586,37 @@ body {
   margin-top: 40px;
 }
 
+.total-expand {
+  font-size: 10px;
+  color: var(--dimmer);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.1s, background 0.1s;
+}
+
+.total-row:hover .total-expand { color: var(--dim); }
+.total-expand:hover { background: var(--sel); color: var(--text) !important; }
+
+.total-active-name {
+  color: var(--text);
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.total-time-running {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 13px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
 .week-total-row { border-bottom: 2px solid var(--border); }
 
 .day-row:first-child { border-top: none; }
@@ -577,7 +625,7 @@ body {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 8px 10px 8px 22px;
+  padding: 8px 10px 8px 10px;
   border-top: 1px solid var(--border);
   cursor: pointer;
   user-select: none;
@@ -687,7 +735,7 @@ body {
   color: var(--dimmer);
   text-transform: uppercase;
   letter-spacing: 0.15em;
-  padding: 0 0 8px 22px;
+  padding: 0 0 8px 10px;
   margin-bottom: 10px;
   border-bottom: 2px solid var(--border);
 }
@@ -701,7 +749,7 @@ body {
   color: var(--text);
   font-family: var(--font);
   font-size: 14px;
-  padding: 6px 0 14px 22px;
+  padding: 6px 0 14px 10px;
   caret-color: var(--accent);
   margin-bottom: 4px;
   transition: border-color 0.15s;
@@ -716,7 +764,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 0 9px 22px;
+  padding: 6px 0 9px 10px;
   border-bottom: 1px solid var(--border);
   font-size: 14px;
 }
@@ -764,8 +812,31 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 24px;
   z-index: 100;
+}
+.footer-inner {
+  width: 100%;
+  max-width: 760px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+}
+.footer-contact {
+  font-family: var(--font);
+  font-size: 12px;
+  color: var(--dimmer);
+}
+.footer-contact a {
+  color: var(--dimmer);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.footer-contact a:hover { color: var(--dim); }
+.footer-share {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 .share-label {
   font-family: var(--font);
@@ -783,3 +854,107 @@ body {
   transition: color 0.1s;
 }
 .share-link:hover { color: var(--accent); }
+
+/* ── Upgrade header button ── */
+.hd-upgrade { color: var(--accent) !important; }
+.hd-manage  { color: var(--green)  !important; }
+.hd-vip {
+  color: #b8860b;
+  font-family: var(--font);
+  font-size: 13px;
+  cursor: default;
+  user-select: none;
+}
+
+/* ── Billing success banner ── */
+#billing-success-banner {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  background: var(--green);
+  color: #fff;
+  font-size: 13px;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  z-index: 400;
+}
+
+#billing-success-close {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 4px;
+  opacity: 0.8;
+}
+
+#billing-success-close:hover { opacity: 1; }
+
+/* ── Upgrade modal ── */
+#upgrade-modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+}
+
+.upgrade-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.upgrade-box {
+  position: relative;
+  background: var(--surface);
+  padding: 32px;
+  max-width: 340px;
+  width: 90%;
+  text-align: center;
+  z-index: 1;
+}
+
+.upgrade-message {
+  font-size: 15px;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.upgrade-sub {
+  font-size: 13px;
+  color: var(--dim);
+  margin-bottom: 24px;
+}
+
+.upgrade-cta {
+  background: var(--accent);
+  color: var(--surface);
+  border: none;
+  font-family: var(--font);
+  font-size: 14px;
+  padding: 10px 24px;
+  cursor: pointer;
+  width: 100%;
+  transition: filter 0.15s;
+  margin-bottom: 12px;
+}
+
+.upgrade-cta:hover { filter: brightness(1.1); }
+
+.upgrade-dismiss {
+  background: none;
+  border: none;
+  color: var(--dimmer);
+  font-family: var(--font);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.upgrade-dismiss:hover { color: var(--dim); }

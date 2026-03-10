@@ -1,8 +1,19 @@
 // ── Persistence ───────────────────────────────────────────────────────────────
-const GUEST_KEY = 'tt_guest_tasks';
+const GUEST_KEY        = 'tt_guest_tasks';
+const GUEST_TRIAL_KEY  = 'tt_guest_trial_start';
+const FREE_LIMIT       = 5;
 let data = { tasks: [] };
 
+// ── Billing state ─────────────────────────────────────────────────────────────
+let subscriptionStatus = 'free';
+let isComped = false;
+
 async function load() {
+  if (location.pathname === '/billing/success') {
+    history.replaceState(null, '', '/');
+    document.getElementById('billing-success-banner').style.display = 'flex';
+  }
+
   const resetToken = new URLSearchParams(location.search).get('token');
   if (resetToken) { showAuth(); showResetView(); return; }
   const token = localStorage.getItem('tt_token');
@@ -23,8 +34,9 @@ async function load() {
       return;
     }
     data = await r.json();
-  data.later = data.later || [];
+    data.later = data.later || [];
   } catch { data = { tasks: [] }; }
+  await fetchBillingStatus();
   showUserMode();
   hideAuth();
   render();
@@ -156,12 +168,121 @@ function showGuestMode() {
   document.getElementById('guest-banner').style.display = 'block';
   document.getElementById('hd-signin').style.display = '';
   document.getElementById('hd-logout').style.display = 'none';
+  subscriptionStatus = 'free';
+  isComped = false;
+  updateBillingUI();
 }
 
 function showUserMode() {
   document.getElementById('guest-banner').style.display = 'none';
   document.getElementById('hd-signin').style.display = 'none';
   document.getElementById('hd-logout').style.display = '';
+  updateBillingUI();
+}
+
+async function fetchBillingStatus() {
+  const token = localStorage.getItem('tt_token');
+  if (!token) return;
+  try {
+    const r = await fetch('/billing/status', { headers: { 'Authorization': `Bearer ${token}` } });
+    if (r.ok) {
+      const s = await r.json();
+      subscriptionStatus = s.subscription_status;
+      isComped = s.is_comped;
+    }
+  } catch {}
+  updateBillingUI();
+}
+
+function updateBillingUI() {
+  const token = localStorage.getItem('tt_token');
+  const subscribed = subscriptionStatus === 'active' || isComped;
+  document.getElementById('hd-upgrade').style.display = (token && !subscribed)           ? '' : 'none';
+  document.getElementById('hd-manage').style.display  = (token && subscribed && !isComped) ? '' : 'none';
+  document.getElementById('hd-vip').style.display     = (token && isComped)               ? '' : 'none';
+}
+
+function showUpgradeModal(message) {
+  document.getElementById('upgrade-message').textContent =
+    message || "You've reached your 5 free sessions for today.";
+  document.getElementById('upgrade-modal').style.display = 'flex';
+}
+
+function hideUpgradeModal() {
+  document.getElementById('upgrade-modal').style.display = 'none';
+}
+
+async function startCheckout() {
+  const token = localStorage.getItem('tt_token');
+  if (!token) {
+    hideUpgradeModal();
+    authMode = 'signup';
+    showLoginView();
+    showAuth();
+    return;
+  }
+  try {
+    const guestTrialStart = localStorage.getItem(GUEST_TRIAL_KEY);
+    const body = guestTrialStart ? { guest_trial_start: parseInt(guestTrialStart) } : {};
+    const r = await fetch('/billing/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+    if (r.ok) {
+      const json = await r.json();
+      window.location.href = json.url;
+    }
+  } catch {}
+}
+
+async function openBillingPortal() {
+  const token = localStorage.getItem('tt_token');
+  if (!token) return;
+  try {
+    const r = await fetch('/billing/portal', { headers: { 'Authorization': `Bearer ${token}` } });
+    if (r.ok) {
+      const json = await r.json();
+      window.location.href = json.url;
+    }
+  } catch {}
+}
+
+async function canStartSession() {
+  const token = localStorage.getItem('tt_token');
+  if (token) {
+    try {
+      const r = await fetch('/sessions/start', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (r.status === 402) {
+        const body = await r.json();
+        showUpgradeModal(body.detail);
+        return false;
+      }
+      return r.ok;
+    } catch {
+      return true; // network error: allow optimistically
+    }
+  } else {
+    // Guest: client-side trial + rate limit
+    let trialStart = localStorage.getItem(GUEST_TRIAL_KEY);
+    if (!trialStart) {
+      trialStart = Date.now();
+      localStorage.setItem(GUEST_TRIAL_KEY, trialStart);
+    }
+    const withinTrial = Date.now() - parseInt(trialStart) < 30 * 24 * 60 * 60 * 1000;
+    if (withinTrial) return true;
+    const today = localDateStr();
+    const todayCount = data.tasks.reduce((n, t) =>
+      n + t.sessions.filter(s => localDateStr(new Date(s.start)) === today).length, 0);
+    if (todayCount >= FREE_LIMIT) {
+      showUpgradeModal("You've reached your 5 free sessions for today.");
+      return false;
+    }
+    return true;
+  }
 }
 
 function showAuth() {
@@ -303,6 +424,8 @@ function logout() {
   if (ticker) { clearInterval(ticker); ticker = null; }
   clearPomodoroTimer();
   localStorage.removeItem('tt_token');
+  subscriptionStatus = 'free';
+  isComped = false;
   loadGuestData();
   showGuestMode();
   render();
@@ -320,11 +443,12 @@ document.getElementById('hd-signin').addEventListener('click', () => {
 });
 
 // ── Pomodoro ──────────────────────────────────────────────────────────────────
-let pomodoroActive = false;
+let pomodoroActive = localStorage.getItem('tt_pomodoro_active') === 'true';
 let pomodoroTimer  = null;
 
 const pomodoroBtn  = document.getElementById('hd-pomodoro');
 const pomodoroMins = document.getElementById('hd-pomodoro-mins');
+pomodoroBtn.classList.toggle('active', pomodoroActive);
 
 // Persist the minutes value across sessions
 pomodoroMins.value = localStorage.getItem('tt_pomodoro_mins') ?? '25';
@@ -336,6 +460,7 @@ pomodoroMins.addEventListener('change', () => {
 
 pomodoroBtn.addEventListener('click', () => {
   pomodoroActive = !pomodoroActive;
+  localStorage.setItem('tt_pomodoro_active', pomodoroActive);
   pomodoroBtn.classList.toggle('active', pomodoroActive);
   if (pomodoroActive) {
     getAudioCtx().resume(); // warm up while we have a user gesture
@@ -469,12 +594,19 @@ function allWeekMs() {
 }
 
 // ── Actions ───────────────────────────────────────────────────────────────────
-function startTask(task) {
+async function startTask(task) {
+  const isRunning = task.sessions.some(s => !s.end);
+
+  if (!isRunning) {
+    const allowed = await canStartSession();
+    if (!allowed) return;
+  }
+
   const cur = runningTask();
   if (cur && cur.id !== task.id) {
     cur.sessions.find(s => !s.end).end = Date.now();
   }
-  if (task.sessions.some(s => !s.end)) {
+  if (isRunning) {
     task.sessions.find(s => !s.end).end = Date.now();
     clearPomodoroTimer();
   } else {
@@ -537,6 +669,9 @@ function liveUpdate() {
     const t = data.tasks.find(x => x.id === el.dataset.live);
     if (t) el.textContent = fmt(taskTodayMs(t));
   });
+  document.querySelectorAll('[data-live-session]').forEach(el => {
+    el.textContent = fmt(Date.now() - parseInt(el.dataset.liveSession));
+  });
   document.querySelectorAll('[data-live-range]').forEach(el => {
     const s = JSON.parse(el.dataset.liveRange);
     el.textContent = fmt((Date.now()) - s);
@@ -550,13 +685,13 @@ function liveUpdate() {
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let selIdx  = -1;
+let tasksVisible = localStorage.getItem('tt_tasks_visible') !== 'false';
 const expanded     = new Set();
 const expandedDays = new Set();
 
 const searchEl   = document.getElementById('search');
 const listEl     = document.getElementById('task-list');
 const totalRow   = document.getElementById('total-row');
-const totalTime  = document.getElementById('total-time');
 const hdRunning  = document.getElementById('hd-running');
 const hdDate     = document.getElementById('hd-date');
 const historyEl  = document.getElementById('history');
@@ -570,7 +705,16 @@ function queryLC() { return query().toLowerCase(); }
 
 function filtered() {
   const q = queryLC();
-  if (!q) return data.tasks.filter(t => taskTodayMs(t) > 0 || t.sessions.some(s => !s.end));
+  if (!q) {
+    const todayTasks = data.tasks.filter(t => taskTodayMs(t) > 0 || t.sessions.some(s => !s.end));
+    if (todayTasks.length >= 10) return todayTasks;
+    const todayIds = new Set(todayTasks.map(t => t.id));
+    const recent = data.tasks
+      .filter(t => !todayIds.has(t.id) && t.sessions.length > 0)
+      .sort((a, b) => Math.max(...b.sessions.map(s => s.start)) - Math.max(...a.sessions.map(s => s.start)))
+      .slice(0, 10 - todayTasks.length);
+    return [...todayTasks, ...recent];
+  }
   return data.tasks.filter(t => t.name.toLowerCase().includes(q));
 }
 
@@ -659,7 +803,7 @@ function renderHistory() {
   }).join('');
 }
 
-historyEl.addEventListener('click', e => {
+historyEl.addEventListener('click', async e => {
   const dtDel = e.target.closest('.dt-del');
   if (dtDel) {
     const taskRow = dtDel.closest('.day-task-row');
@@ -671,7 +815,7 @@ historyEl.addEventListener('click', e => {
   if (taskRow) {
     const task = data.tasks.find(t => t.id === taskRow.dataset.taskId);
     if (task) {
-      startTask(task);
+      await startTask(task);
       searchEl.focus();
     }
     return;
@@ -697,13 +841,13 @@ function deleteLaterItem(id) {
   render();
 }
 
-function promoteToTask(id) {
+async function promoteToTask(id) {
   const item = data.later.find(i => i.id === id);
   if (!item) return;
   const task = { id: crypto.randomUUID(), name: item.text, sessions: [] };
   data.tasks.push(task);
   data.later = data.later.filter(i => i.id !== id);
-  startTask(task); // stops any running task, persists, renders
+  await startTask(task); // stops any running task, persists, renders
 }
 
 function renderLater() {
@@ -715,6 +859,30 @@ function renderLater() {
       <button class="later-del" data-id="${item.id}">✕</button>
     </li>
   `).join('');
+}
+
+// ── Hint row ──────────────────────────────────────────────────────────────────
+const hintRowEl = document.getElementById('search-hint');
+function updateHintRow() {
+  const count       = filtered().length;
+  const searchFocused = document.activeElement === searchEl;
+  const hasRunning  = !!runningTask();
+
+  const parts = [];
+  if (count >= 1) {
+    const last = count >= 10 ? '0' : String(count);
+    const label = count === 1 ? '1' : `1-${last}`;
+    parts.push(`<kbd>${label}</kbd> start`);
+  }
+  parts.push(`<kbd>n</kbd> new`);
+  if (searchFocused) {
+    parts.push(`<kbd><span class="char-up">↵</span></kbd> start / stop`);
+    parts.push(`<kbd>↑↓</kbd> select`);
+    parts.push(`<kbd>tab</kbd> log`);
+  }
+  if (hasRunning) parts.push(`<kbd>esc</kbd> clear`);
+
+  hintRowEl.innerHTML = parts.join(' &nbsp;·&nbsp; ');
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────
@@ -735,6 +903,8 @@ function render() {
   // create hint (inline in search row)
   const exactMatch = tasks.find(t => t.name.toLowerCase() === qLC);
   document.getElementById('search-create-hint').classList.toggle('visible', !!(q && !exactMatch));
+
+  updateHintRow();
 
   // empty state
   if (!q && tasks.length === 0) {
@@ -772,9 +942,15 @@ function render() {
 
     li.innerHTML = `
       <div class="task-main">
-        <span class="t-dot"></span>
         <span class="t-name">${esc(task.name)}</span>
-        <span class="t-time"${isRunning ? ` data-live="${task.id}"` : ''}>${fmt(taskTodayMs(task))}</span>
+        <span class="t-dot"></span>
+        ${(() => {
+          if (isRunning) {
+            const sessionStart = task.sessions.find(s => !s.end).start;
+            return `<span class="t-time"><span class="t-time-label">session</span> <span data-live-session="${sessionStart}">${fmt(Date.now() - sessionStart)}</span> <span class="t-time-sep">·</span> <span class="t-time-label">today</span> <span data-live="${task.id}">${fmt(taskTodayMs(task))}</span></span>`;
+          }
+          return `<span class="t-time">${fmt(taskTodayMs(task))}</span>`;
+        })()}
         <span class="t-expand">${hasLog ? (isExp ? '▲' : '▼') : ''}</span>
         <button class="t-del" data-id="${task.id}" tabindex="-1">✕</button>
       </div>
@@ -784,10 +960,29 @@ function render() {
     listEl.appendChild(li);
   });
 
-  // total
+  // total row — temporarily show list while user is searching
+  const listShown = tasksVisible || !!q;
   const hasData = data.tasks.some(t => t.sessions.some(s => isToday(s.start)));
   totalRow.style.display = hasData ? 'flex' : 'none';
-  totalTime.textContent  = fmt(allTodayMs());
+  listEl.style.display   = listShown ? '' : 'none';
+  if (hasData) {
+    if (!listShown && running) {
+      const sessionStart = running.sessions.find(s => !s.end).start;
+      totalRow.innerHTML = `
+        <span class="total-label">today &nbsp;·&nbsp; <span class="total-active-name">${esc(running.name)}</span></span>
+        <span class="total-time total-time-running">
+          <span class="t-time-label">session</span> <span data-live-session="${sessionStart}">${fmt(Date.now() - sessionStart)}</span>
+          <span class="t-time-sep">·</span>
+          <span class="t-time-label">today</span> <span id="total-time">${fmt(allTodayMs())}</span>
+        </span>
+        <span class="total-expand">▼</span>`;
+    } else {
+      totalRow.innerHTML = `
+        <span class="total-label">today</span>
+        <span class="total-time" id="total-time">${fmt(allTodayMs())}</span>
+        <span class="total-expand">${listShown ? '▲' : '▼'}</span>`;
+    }
+  }
 
   renderHistory();
   renderLater();
@@ -796,13 +991,13 @@ function render() {
 }
 
 // ── Keyboard ──────────────────────────────────────────────────────────────────
-document.getElementById('search-create-hint').addEventListener('mousedown', e => {
+document.getElementById('search-create-hint').addEventListener('mousedown', async e => {
   e.preventDefault(); // keep focus on input
   const q = query();
   if (!q) return;
   const task = { id: crypto.randomUUID(), name: q, sessions: [] };
   data.tasks.unshift(task);
-  startTask(task);
+  await startTask(task);
   searchEl.value = '';
   selIdx = -1;
   render();
@@ -810,13 +1005,16 @@ document.getElementById('search-create-hint').addEventListener('mousedown', e =>
 
 searchEl.addEventListener('input', () => { selIdx = -1; render(); });
 
+searchEl.addEventListener('focus', updateHintRow);
+searchEl.addEventListener('blur',  updateHintRow);
+
 searchEl.addEventListener('blur', () => {
   searchEl.value = '';
   selIdx = -1;
   render();
 });
 
-searchEl.addEventListener('keydown', e => {
+searchEl.addEventListener('keydown', async e => {
   const tasks = filtered();
   const q     = query();
 
@@ -857,7 +1055,7 @@ searchEl.addEventListener('keydown', e => {
     }
 
     if (task) {
-      startTask(task);
+      await startTask(task);
       searchEl.value = '';
       selIdx = -1;
       render();
@@ -914,7 +1112,7 @@ listEl.addEventListener('mousedown', e => {
   if (!e.target.closest('.sl-time-input')) e.preventDefault();
 });
 
-listEl.addEventListener('click', e => {
+listEl.addEventListener('click', async e => {
   const slRange = e.target.closest('.sl-range');
   if (slRange && slRange.closest('.sl-entry.editable')) {
     const entry = slRange.closest('.sl-entry');
@@ -949,7 +1147,7 @@ listEl.addEventListener('click', e => {
   if (main) {
     const row  = main.closest('.task-row');
     const task = data.tasks.find(t => t.id === row?.dataset.id);
-    if (task) { startTask(task); searchEl.blur(); }
+    if (task) { await startTask(task); searchEl.blur(); }
   }
 });
 
@@ -965,8 +1163,21 @@ document.getElementById('later-list').addEventListener('click', e => {
 });
 
 // ── Global shortcuts ──────────────────────────────────────────────────────────
-document.addEventListener('keydown', e => {
-  if (e.key === 'n' && document.activeElement === document.body) {
+document.addEventListener('keydown', async e => {
+  const onInput = document.activeElement && (
+    document.activeElement.tagName === 'INPUT' ||
+    document.activeElement.tagName === 'TEXTAREA' ||
+    document.activeElement.isContentEditable
+  );
+  if (!onInput && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    const digit = e.key === '0' ? 10 : parseInt(e.key);
+    if (digit >= 1 && digit <= 10) {
+      const task = filtered()[digit - 1];
+      if (task) { e.preventDefault(); await startTask(task); }
+      return;
+    }
+  }
+  if (e.key === 'n' && !onInput) {
     e.preventDefault();
     searchEl.focus();
     return;
@@ -990,6 +1201,16 @@ document.addEventListener('keydown', e => {
   }
 });
 
+document.querySelector('.search-prompt').addEventListener('click', () => searchEl.focus());
+
+totalRow.addEventListener('click', e => {
+  if (e.target.closest('.total-expand')) {
+    tasksVisible = !tasksVisible;
+    localStorage.setItem('tt_tasks_visible', tasksVisible);
+    render();
+  }
+});
+
 // ── Later input ───────────────────────────────────────────────────────────────
 document.getElementById('later-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') {
@@ -1000,6 +1221,16 @@ document.getElementById('later-input').addEventListener('keydown', e => {
 
 // Prevent later-input blur from interfering with task list focus
 document.getElementById('later-input').addEventListener('blur', () => {});
+
+// ── Billing UI events ─────────────────────────────────────────────────────────
+document.getElementById('upgrade-cta').addEventListener('click', startCheckout);
+document.getElementById('upgrade-dismiss').addEventListener('click', hideUpgradeModal);
+document.getElementById('upgrade-backdrop').addEventListener('click', hideUpgradeModal);
+document.getElementById('hd-upgrade').addEventListener('click', startCheckout);
+document.getElementById('hd-manage').addEventListener('click', openBillingPortal);
+document.getElementById('billing-success-close').addEventListener('click', () => {
+  document.getElementById('billing-success-banner').style.display = 'none';
+});
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 window.onGoogleLibraryLoad = initGoogleButton; // fires when GIS script finishes loading

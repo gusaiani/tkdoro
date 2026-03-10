@@ -5,3 +5,4 @@ bcrypt==4.2.1
 psycopg2-binary==2.9.10
 httpx==0.28.1
 google-auth[requests]==2.38.0
+stripe==9.*
