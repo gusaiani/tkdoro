@@ -633,7 +633,7 @@ body {
 
 .day-chevron {
   font-size: 9px;
-  color: var(--border);
+  color: var(--dimmer);
   width: 28px;
   height: 28px;
   display: flex;
@@ -645,7 +645,7 @@ body {
   transition: color 0.1s, background 0.1s;
 }
 
-.day-row:hover .day-chevron { color: var(--dimmer); }
+.day-row:hover .day-chevron { color: var(--dim); }
 .day-chevron:hover { background: var(--sel); color: var(--text) !important; }
 
 .day-label { flex: 1; }

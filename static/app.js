@@ -925,17 +925,28 @@ function render() {
     li.className = ['task-row', isRunning ? 'running' : '', isSel ? 'selected' : ''].join(' ').trim();
     li.dataset.id = task.id;
 
-    const sessionHTML = isExp && hasLog ? `
+    const shownSess  = hasLog ? todaySess : (() => {
+      const last = [...task.sessions].filter(s => s.end).sort((a,b) => b.start - a.start);
+      if (!last.length) return [];
+      const lastDate = localDateStr(new Date(last[0].start));
+      return task.sessions.filter(s => localDateStr(new Date(s.start)) === lastDate);
+    })();
+    const shownDate  = hasLog ? 'today' : (() => {
+      if (!shownSess.length) return '';
+      const d = new Date(shownSess[0].start);
+      return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toLowerCase();
+    })();
+    const sessionHTML = isExp && shownSess.length ? `
       <div class="session-log open">
-        <div class="sl-date">today</div>
-        ${todaySess.map(s => {
+        <div class="sl-date">${shownDate}</div>
+        ${shownSess.map(s => {
           const live = !s.end;
           const dur  = (s.end ?? Date.now()) - s.start;
-          return `<div class="sl-entry${live ? ' live' : ' editable'}"
+          return `<div class="sl-entry${live ? ' live' : (hasLog ? ' editable' : '')}"
               data-task-id="${task.id}" data-session-start="${s.start}">
             <span class="sl-range">${fmtClock(s.start)} – ${live ? 'now' : fmtClock(s.end)}</span>
             <span class="sl-dur"${live ? ` data-live-range="${s.start}"` : ''}>${fmt(dur)}</span>
-            ${live ? '' : `<button class="sl-del" tabindex="-1">✕</button>`}
+            ${live ? '' : hasLog ? `<button class="sl-del" tabindex="-1">✕</button>` : ''}
           </div>`;
         }).join('')}
       </div>` : '';
@@ -951,7 +962,7 @@ function render() {
           }
           return `<span class="t-time">${fmt(taskTodayMs(task))}</span>`;
         })()}
-        <span class="t-expand">${hasLog ? (isExp ? '▲' : '▼') : ''}</span>
+        <span class="t-expand">${task.sessions.length ? (isExp ? '▲' : '▼') : ''}</span>
         <button class="t-del" data-id="${task.id}" tabindex="-1">✕</button>
       </div>
       ${sessionHTML}
