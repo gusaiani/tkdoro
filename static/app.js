@@ -252,10 +252,11 @@ async function canStartSession() {
   const token = localStorage.getItem('tt_token');
   if (token) {
     try {
-      const r = await fetch('/sessions/start', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
+      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000));
+      const r = await Promise.race([
+        fetch('/sessions/start', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } }),
+        timeout,
+      ]);
       if (r.status === 402) {
         const body = await r.json();
         showUpgradeModal(body.detail);
@@ -263,7 +264,7 @@ async function canStartSession() {
       }
       return r.ok;
     } catch {
-      return true; // network error: allow optimistically
+      return true; // network error or timeout: allow optimistically
     }
   } else {
     // Guest: client-side trial + rate limit
@@ -594,7 +595,11 @@ function allWeekMs() {
 }
 
 // ── Actions ───────────────────────────────────────────────────────────────────
+let _startingTask = false;
 async function startTask(task) {
+  if (_startingTask) return;
+  _startingTask = true;
+  try {
   const isRunning = task.sessions.some(s => !s.end);
 
   if (!isRunning) {
@@ -617,6 +622,9 @@ async function startTask(task) {
   persist();
   render();
   ensureTick();
+  } finally {
+    _startingTask = false;
+  }
 }
 
 function deleteTask(id) {
