@@ -473,7 +473,7 @@ body {
 /* ── Session log ── */
 .session-log {
   display: none;
-  padding: 0 0 14px 20px;
+  padding: 0 0 14px 10px;
   border-top: 1px solid var(--border);
 }
 
@@ -484,7 +484,7 @@ body {
   color: var(--dimmer);
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  padding: 8px 0 4px;
+  padding: 16px 0 4px;
 }
 
 .sl-entry {
@@ -494,7 +494,7 @@ body {
   font-size: 13px;
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
   color: var(--dim);
-  padding: 3px 60px 3px 0;
+  padding: 3px 44px 3px 0;
 }
 
 .sl-entry.live { color: var(--accent); }
@@ -514,7 +514,7 @@ body {
 
 .sl-del {
   position: absolute;
-  right: 0;
+  right: -30px;
   top: 50%;
   transform: translateY(-50%);
   opacity: 0;
@@ -522,7 +522,7 @@ body {
   border: none;
   color: var(--red);
   font-family: var(--font);
-  font-size: 11px;
+  font-size: 15px;
   cursor: pointer;
   padding: 0 2px;
   transition: opacity 0.1s;
@@ -668,7 +668,10 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-.week-total-row { border-bottom: 2px solid var(--border); }
+.week-total-row {
+  border-bottom: 1px solid var(--border);
+  padding-right: 52px;
+}
 
 .day-row:first-child { border-top: none; }
 
@@ -726,7 +729,7 @@ body {
 }
 
 .day-tasks {
-  padding: 2px 0 10px 22px;
+  padding: 2px 0 10px 10px;
 }
 
 .day-task-row {
