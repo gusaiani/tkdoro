@@ -670,8 +670,24 @@ body {
 
 .week-total-row {
   border-bottom: 1px solid var(--border);
-  padding-right: 52px;
 }
+
+.week-chevron {
+  font-size: 10px;
+  color: var(--dimmer);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.1s, background 0.1s;
+}
+
+.week-total-row:hover .week-chevron { color: var(--dim); }
+.week-chevron:hover { background: var(--sel); color: var(--text) !important; }
 
 .day-row:first-child { border-top: none; }
 
@@ -679,14 +695,14 @@ body {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 8px 10px 8px 10px;
+  padding: 8px 0 8px 10px;
   border-top: 1px solid var(--border);
   cursor: pointer;
   user-select: none;
 }
 
 .day-chevron {
-  font-size: 9px;
+  font-size: 10px;
   color: var(--dimmer);
   width: 28px;
   height: 28px;

@@ -760,6 +760,7 @@ function liveUpdate() {
 // ── State ─────────────────────────────────────────────────────────────────────
 let selIdx  = -1;
 let tasksVisible = localStorage.getItem('tt_tasks_visible') !== 'false';
+let weekVisible  = localStorage.getItem('tt_week_visible')  !== 'false';
 const expanded     = new Set();
 const expandedDays = new Set();
 
@@ -846,12 +847,7 @@ function renderHistory() {
 
   const weekTotal = allWeekMs();
 
-  historyEl.innerHTML = `
-    <div class="total-row week-total-row">
-      <span class="total-label">week</span>
-      <span class="total-time" id="week-total-time">${fmt(weekTotal)}</span>
-    </div>
-  ` + days.map(dateStr => {
+  const dayRows = weekVisible ? days.map(dateStr => {
     const isExp  = expandedDays.has(dateStr);
     const total  = dayTotalMs(dateStr);
     const d      = new Date(dateStr + 'T12:00:00');
@@ -874,7 +870,15 @@ function renderHistory() {
           </div>`).join('')
       }</div>` : ''}
     `;
-  }).join('');
+  }).join('') : '';
+
+  historyEl.innerHTML = `
+    <div class="total-row week-total-row">
+      <span class="total-label">week</span>
+      <span class="total-time" id="week-total-time">${fmt(weekTotal)}</span>
+      <span class="week-chevron">${weekVisible ? '▲' : '▼'}</span>
+    </div>
+  ` + dayRows;
 }
 
 historyEl.addEventListener('click', async e => {
@@ -892,6 +896,13 @@ historyEl.addEventListener('click', async e => {
       await startTask(task);
       searchEl.focus();
     }
+    return;
+  }
+
+  if (e.target.closest('.week-chevron')) {
+    weekVisible = !weekVisible;
+    localStorage.setItem('tt_week_visible', weekVisible);
+    renderHistory();
     return;
   }
 
