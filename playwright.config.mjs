@@ -1,5 +1,5 @@
 export default {
-  testDir: './tests',
+  testDir: './tests/e2e',
   testMatch: '*.e2e.mjs',
   timeout: 15000,
   use: {
