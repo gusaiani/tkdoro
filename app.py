@@ -61,7 +61,10 @@ async def redirect_to_canonical(request: Request, call_next):
         url = str(request.url).replace(f"://{host}", f"://{CANONICAL_HOST}", 1)
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url, status_code=301)
-    return await call_next(request)
+    response = await call_next(request)
+    if request.url.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 def init_db():
