@@ -381,6 +381,7 @@ body {
 }
 
 .task-row:hover .t-play { opacity: 1; }
+.t-play.pausing { background: var(--border); color: var(--text); font-size: 15px; padding-left: 0; }
 .task-main.not-expandable { cursor: default; }
 .t-play:hover { background: var(--border); color: var(--text); }
 

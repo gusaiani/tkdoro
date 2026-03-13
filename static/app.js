@@ -1047,7 +1047,7 @@ function render() {
 
     li.innerHTML = `
       <div class="task-main${isRecent ? ' not-expandable' : ''}">
-        <button class="t-play" data-id="${task.id}" tabindex="-1">▶</button>
+        <button class="t-play${isRunning ? ' pausing' : ''}" data-id="${task.id}" tabindex="-1">${isRunning ? '⏸' : '▶'}</button>
         <span class="t-name">${esc(task.name)}</span>
         <span class="t-dot"></span>
         ${isRecent ? '' : (() => {
