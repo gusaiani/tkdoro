@@ -761,8 +761,9 @@ function liveUpdate() {
 let selIdx  = -1;
 let tasksVisible = localStorage.getItem('tt_tasks_visible') !== 'false';
 let weekVisible  = localStorage.getItem('tt_week_visible')  !== 'false';
-const expanded     = new Set();
-const expandedDays = new Set();
+const expanded         = new Set();
+const expandedDays     = new Set();
+const expandedDayTasks = new Set();
 
 const searchEl   = document.getElementById('search');
 const listEl     = document.getElementById('task-list');
@@ -819,13 +820,15 @@ function dayTotalMs(dateStr) {
 
 function tasksForDay(dateStr) {
   return data.tasks
-    .map(t => ({
-      id: t.id,
-      name: t.name,
-      ms: t.sessions
-        .filter(s => s.end && localDateStr(new Date(s.start)) === dateStr)
-        .reduce((a, s) => a + (s.end - s.start), 0)
-    }))
+    .map(t => {
+      const sessions = t.sessions.filter(s => s.end && localDateStr(new Date(s.start)) === dateStr);
+      return {
+        id: t.id,
+        name: t.name,
+        sessions,
+        ms: sessions.reduce((a, s) => a + (s.end - s.start), 0)
+      };
+    })
     .filter(t => t.ms > 0)
     .sort((a, b) => b.ms - a.ms);
 }
@@ -862,12 +865,26 @@ function renderHistory() {
         <span class="day-chevron">${isExp ? '▲' : '▼'}</span>
       </div>
       ${isExp ? `<div class="day-tasks">${
-        tasks.map(t => `
-          <div class="day-task-row" data-task-id="${t.id}" data-date="${dateStr}">
+        tasks.map(t => {
+          const dtKey = `${dateStr}::${t.id}`;
+          const dtExp = expandedDayTasks.has(dtKey);
+          const sessionsHTML = dtExp ? `<div class="session-log open">${
+            t.sessions.map(s => {
+              const dur = s.end - s.start;
+              return `<div class="sl-entry editable" data-task-id="${t.id}" data-session-start="${s.start}">
+                <span class="sl-range">${fmtClock(s.start)} – ${fmtClock(s.end)}</span>
+                <span class="sl-dur">${fmt(dur)}</span>
+                <button class="sl-del" tabindex="-1">✕</button>
+              </div>`;
+            }).join('')
+          }</div>` : '';
+          return `
+          <div class="day-task-row${dtExp ? ' expanded' : ''}" data-task-id="${t.id}" data-date="${dateStr}">
             <span class="dt-name">${esc(t.name)}</span>
             <span class="dt-time">${fmt(t.ms)}</span>
             <button class="dt-del" tabindex="-1">✕</button>
-          </div>`).join('')
+          </div>${sessionsHTML}`;
+        }).join('')
       }</div>` : ''}
     `;
   }).join('') : '';
@@ -881,7 +898,29 @@ function renderHistory() {
   ` + dayRows;
 }
 
+historyEl.addEventListener('mousedown', e => {
+  if (!e.target.closest('.sl-time-input')) e.preventDefault();
+});
+
 historyEl.addEventListener('click', async e => {
+  // Session time editing
+  const slRange = e.target.closest('.sl-range');
+  if (slRange && slRange.closest('.sl-entry.editable')) {
+    const entry = slRange.closest('.sl-entry');
+    if (!entry.querySelector('.sl-time-input')) {
+      beginEditSession(entry, entry.dataset.taskId, parseInt(entry.dataset.sessionStart));
+    }
+    return;
+  }
+
+  // Session delete
+  const slDel = e.target.closest('.sl-del');
+  if (slDel) {
+    const entry = slDel.closest('.sl-entry');
+    deleteSession(entry.dataset.taskId, parseInt(entry.dataset.sessionStart));
+    return;
+  }
+
   const dtDel = e.target.closest('.dt-del');
   if (dtDel) {
     const taskRow = dtDel.closest('.day-task-row');
@@ -891,11 +930,9 @@ historyEl.addEventListener('click', async e => {
 
   const taskRow = e.target.closest('.day-task-row');
   if (taskRow) {
-    const task = data.tasks.find(t => t.id === taskRow.dataset.taskId);
-    if (task) {
-      await startTask(task);
-      searchEl.focus();
-    }
+    const dtKey = `${taskRow.dataset.date}::${taskRow.dataset.taskId}`;
+    expandedDayTasks.has(dtKey) ? expandedDayTasks.delete(dtKey) : expandedDayTasks.add(dtKey);
+    renderHistory();
     return;
   }
 
