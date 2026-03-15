@@ -508,7 +508,7 @@ body {
 /* ── Session log ── */
 .session-log {
   display: none;
-  padding: 0 0 14px 10px;
+  padding: 0 0 14px 0;
   border-top: 1px solid var(--border);
 }
 
@@ -795,6 +795,15 @@ body {
   padding: 2px 0 10px 10px;
 }
 
+.day-tasks .session-log {
+  border-top: none;
+  padding: 0 0 6px 0;
+}
+
+.day-tasks .sl-entry {
+  padding-right: 42px; /* chevron(28px) + gap(14px) — aligns sl-dur with dt-time */
+}
+
 .day-task-row {
   position: relative;
   display: flex;
@@ -821,12 +830,27 @@ body {
   flex-shrink: 0;
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
   font-variant-numeric: tabular-nums;
-  margin-right: 42px; /* mirrors gap(14px) + chevron(28px) — aligns with day-total */
 }
+
+.dt-chevron {
+  font-size: 10px;
+  color: var(--dimmer);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.1s, background 0.1s;
+}
+.day-task-row:hover .dt-chevron { color: var(--dim); }
+.dt-chevron:hover { background: var(--sel); color: var(--text) !important; }
 
 .dt-del {
   position: absolute;
-  right: 0; /* sits just outside the table boundary */
+  right: 0;
   opacity: 0;
   background: none;
   border: none;

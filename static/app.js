@@ -886,6 +886,7 @@ function renderHistory() {
           <div class="day-task-row${dtExp ? ' expanded' : ''}" data-task-id="${t.id}" data-date="${dateStr}">
             <span class="dt-name">${esc(t.name)}</span>
             <span class="dt-time">${fmt(t.ms)}</span>
+            <span class="dt-chevron">${dtExp ? '▲' : '▼'}</span>
             <button class="dt-del" tabindex="-1">✕</button>
           </div>${sessionsHTML}`;
         }).join('')
