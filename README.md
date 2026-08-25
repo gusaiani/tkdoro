@@ -172,9 +172,10 @@ Then open `http://localhost:8000/?token=<token>` manually to reach the reset for
 |-----|--------|
 | Type | Search existing tasks or name a new one |
 | `↵` | Start/stop the matched task — or create and start a new one if no match |
+| `⇧↵` | Start the matched task **in parallel**, without stopping the running one |
 | `↑` `↓` | Navigate the task list |
 | `Tab` | Expand/collapse today's session log for the selected task |
-| `Esc` | Clear the search |
+| `Esc` | Clear the search — or stop **all** running tasks when the search is empty |
 | `#` | Optional tag: type `task name` then `#tagname` (space optional). Autocomplete appears after `#`. |
 
 You can also click any task row to start/stop it, and hover to reveal the `✕` delete button.
@@ -183,7 +184,33 @@ You can also click any task row to start/stop it, and hover to reveal the `✕` 
 
 The search placeholder shows an example with `#`. While the search field is focused, the hint row shows keyboard shortcuts for the search field. After you create **three new tasks without a tag**, the beaver mascot may show a short tip (at most **twice** per browser)—e.g. *“add a tag like this: task #work”*; dismiss with **×** or by clicking outside the mascot area. As soon as you **create a new task that includes a tag** (`#something`), the tip closes and will not appear again — same as if you had dismissed it twice. Dismissals are stored in `localStorage` under `doingit_tag_tip_dismissals` (older builds used `doingit_project_tag_tip_dismissals`; the app migrates that value once on read).
 
-Only one task runs at a time — starting a new one automatically stops the current one.
+By default starting a new task stops the current one. Hold `Shift` to start a task alongside the ones already running — see "Parallel tracking" below.
+
+## Parallel tracking
+
+You can track several tasks at the same time — useful when you genuinely work in parallel (a long build running under one task while you review code under another).
+
+**How it works**
+
+1. A plain start (`↵`, a number key, or clicking `▶`) keeps the old behavior: it stops the currently running task and starts the new one.
+2. Holding `Shift` starts the task *without* stopping the others: `⇧↵` in the search field, `Shift`+number key, `Shift`+click on `▶`, or `⇧↵` on a row in keyboard-navigation mode.
+3. Each running task shows its own live session timer and highlight; the header `● recording` dot is on while at least one task runs.
+4. `Esc` (with an empty search) stops all running tasks at once. Stopping a single task is unchanged: press its number / `↵` / `▶` again. Logging out closes every open session.
+5. With the pomodoro enabled, each running task gets its own independent timer, armed from that task's session start.
+6. Each parallel session counts toward the free tier's 5-sessions-per-day limit individually.
+
+The main page's "today" and week totals are plain sums across tasks, so an hour spent running two tasks counts as two hours there. The monthly report shows both readings — see below.
+
+**Report: total with and without overlap**
+
+The monthly report (`/report`, and the shared `/shared/{token}/report`) shows two totals:
+
+| Total | Meaning |
+|-------|---------|
+| **Total** | Sum of all task time. An hour with two tasks running counts as 2h. |
+| **Without overlap** | Wall-clock time spent tracking: overlapping sessions are merged and counted once. |
+
+The two are equal if you never track in parallel. The backend returns the merged figure as `no_overlap_ms` in `GET /report/monthly`; the guest report computes it locally from `localStorage`.
 
 ## Seed data
 

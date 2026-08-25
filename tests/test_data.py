@@ -60,6 +60,19 @@ def test_live_session_round_trips_as_null_end(client, alice):
     assert session["end"] is None
 
 
+def test_concurrent_live_sessions_round_trip(client, alice):
+    """Two tasks can have open (end=None) sessions at the same time."""
+    now = 1_700_000_000_000
+    payload = {"tasks": [
+        {"id": "t1", "name": "Running A", "sessions": [{"start": now, "end": None}]},
+        {"id": "t2", "name": "Running B", "sessions": [{"start": now + 60_000, "end": None}]},
+    ], "later": []}
+    client.post("/data", content=json.dumps(payload), headers=auth_headers(alice["token"]))
+    r = client.get("/data", headers=auth_headers(alice["token"]))
+    open_sessions = [s for t in r.json()["tasks"] for s in t["sessions"] if s["end"] is None]
+    assert len(open_sessions) == 2
+
+
 def test_post_overwrites_previous_data(client, alice):
     now = 1_700_000_000_000
     first  = {"tasks": [{"id": "1", "name": "First",  "sessions": [{"start": now, "end": now + 1000}]}], "later": []}

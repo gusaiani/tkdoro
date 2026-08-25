@@ -1933,6 +1933,17 @@ html[data-theme="dark"] .sl-date-input { color-scheme: dark; }
   color: var(--fg);
 }
 
+.report-total-secondary {
+  padding-top: 0;
+  margin-top: -8px;
+}
+
+.report-total-secondary .report-total-time {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--dimmer);
+}
+
 .report-rows {
   display: flex;
   flex-direction: column;

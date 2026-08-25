@@ -131,6 +131,71 @@ def test_report_ignores_running_sessions(client, alice):
     assert body["total_ms"] == 0
 
 
+def test_report_no_overlap_total_with_concurrent_sessions(client, alice):
+    """Overlapping sessions across tasks: total_ms sums them, no_overlap_ms merges them."""
+    base = _ms_days_ago(2)
+    payload = {
+        "tasks": [
+            {"id": "t1", "name": "Task A", "sessions": [
+                {"start": base, "end": base + 3600_000},                 # 0h – 1h
+            ]},
+            {"id": "t2", "name": "Task B", "sessions": [
+                {"start": base + 1800_000, "end": base + 5400_000},      # 0.5h – 1.5h
+            ]},
+        ],
+        "later": [],
+    }
+    client.post("/data", content=json.dumps(payload), headers=auth_headers(alice["token"]))
+
+    r = client.get("/report/monthly", headers=auth_headers(alice["token"]))
+    body = r.json()
+    assert body["total_ms"] == 7200_000        # 1h + 1h, overlap double-counted
+    assert body["no_overlap_ms"] == 5400_000   # union: 0h – 1.5h
+
+
+def test_report_no_overlap_equals_total_when_sequential(client, alice):
+    """Without concurrency the two totals are identical."""
+    start1 = _ms_days_ago(3)
+    start2 = start1 + 7200_000  # starts well after the first ends
+
+    _seed_task_with_sessions(client, alice["token"], "t1", "Solo work", [
+        {"start": start1, "end": start1 + 3600_000},
+        {"start": start2, "end": start2 + 1800_000},
+    ])
+
+    r = client.get("/report/monthly", headers=auth_headers(alice["token"]))
+    body = r.json()
+    assert body["total_ms"] == 5400_000
+    assert body["no_overlap_ms"] == 5400_000
+
+
+def test_report_no_overlap_empty(client, alice):
+    r = client.get("/report/monthly", headers=auth_headers(alice["token"]))
+    assert r.json()["no_overlap_ms"] == 0
+
+
+def test_shared_report_includes_no_overlap_total(client, alice):
+    """The shared read-only report exposes the same overlap-free total."""
+    base = _ms_days_ago(2)
+    payload = {
+        "tasks": [
+            {"id": "t1", "name": "Task A", "sessions": [
+                {"start": base, "end": base + 3600_000},
+            ]},
+            {"id": "t2", "name": "Task B", "sessions": [
+                {"start": base, "end": base + 3600_000},                 # fully concurrent
+            ]},
+        ],
+        "later": [],
+    }
+    client.post("/data", content=json.dumps(payload), headers=auth_headers(alice["token"]))
+    token = client.post("/share/enable", headers=auth_headers(alice["token"])).json()["share_token"]
+
+    body = client.get(f"/shared/{token}/report/monthly").json()
+    assert body["total_ms"] == 7200_000
+    assert body["no_overlap_ms"] == 3600_000
+
+
 def test_report_page_serves_html(client):
     r = client.get("/report")
     assert r.status_code == 200

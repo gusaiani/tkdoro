@@ -660,6 +660,22 @@ def done_stats(
     return _fetch_done_stats(user_id, db)
 
 
+def _merged_intervals_ms(intervals):
+    """Total length of the union of (start, end) intervals — overlap counted once."""
+    total = 0
+    cur_start = cur_end = None
+    for start, end in sorted(intervals):
+        if cur_end is None or start > cur_end:
+            if cur_end is not None:
+                total += cur_end - cur_start
+            cur_start, cur_end = start, end
+        elif end > cur_end:
+            cur_end = end
+    if cur_end is not None:
+        total += cur_end - cur_start
+    return total
+
+
 def _fetch_monthly_report(user_id: int, db):
     thirty_days_ago_ms = int((time.time() - 30 * 86400) * 1000)
     db.execute("""
@@ -679,9 +695,22 @@ def _fetch_monthly_report(user_id: int, db):
         for r in db.fetchall()
     ]
     total_ms = sum(t["total_ms"] for t in tasks)
+    db.execute("""
+        SELECT start_ts, end_ts FROM sessions
+        WHERE user_id = %s AND start_ts >= %s AND end_ts IS NOT NULL
+    """, (user_id, thirty_days_ago_ms))
+    no_overlap_ms = _merged_intervals_ms(
+        (int(r["start_ts"]), int(r["end_ts"])) for r in db.fetchall()
+    )
     period_start = datetime.fromtimestamp(thirty_days_ago_ms / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
     period_end = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    return {"tasks": tasks, "total_ms": total_ms, "period_start": period_start, "period_end": period_end}
+    return {
+        "tasks": tasks,
+        "total_ms": total_ms,
+        "no_overlap_ms": no_overlap_ms,
+        "period_start": period_start,
+        "period_end": period_end,
+    }
 
 
 @app.get("/report/monthly")
