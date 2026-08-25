@@ -620,7 +620,8 @@ html[data-theme="system"] #auth-screen {
 /* ── Task list ── */
 #task-list { list-style: none; }
 
-#search-create-hint {
+#search-create-hint,
+#search-parallel-hint {
   font-size: 13px;
   color: var(--dim);
   white-space: nowrap;
@@ -630,9 +631,13 @@ html[data-theme="system"] #auth-screen {
   cursor: pointer;
 }
 
-#search-create-hint:hover { color: var(--accent); }
+#search-create-hint:hover,
+#search-parallel-hint:hover { color: var(--accent); }
 
-#search-create-hint.visible { display: block; }
+#search-create-hint.visible,
+#search-parallel-hint.visible { display: block; }
+
+#search-parallel-hint { margin-left: 10px; }
 
 .hint-return { position: relative; top: 2px; display: inline-block; }
 

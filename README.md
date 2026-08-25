@@ -194,6 +194,7 @@ You can track several tasks at the same time — useful when you genuinely work 
 
 1. A plain start (`↵`, a number key, or clicking `▶`) keeps the old behavior: it stops the currently running task and starts the new one.
 2. Holding `Shift` starts the task *without* stopping the others: `⇧↵` in the search field, `Shift`+number key, `Shift`+click on `▶`, or `⇧↵` on a row in keyboard-navigation mode.
+   When you type a name that would create a new task while something is already running, the input row shows a clickable `⇧↵ parallel` hint next to `↵ new`. While anything is running, the shortcut guide under the input shows `⇧+start parallel` — holding `Shift` makes any start method parallel.
 3. Each running task shows its own live session timer and highlight; the header `● recording` dot is on while at least one task runs.
 4. `Esc` (with an empty search) stops all running tasks at once. Stopping a single task is unchanged: press its number / `↵` / `▶` again. Logging out closes every open session.
 5. With the pomodoro enabled, each running task gets its own independent timer, armed from that task's session start.
