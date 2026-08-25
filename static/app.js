@@ -1737,10 +1737,12 @@ function updateHintRow() {
       }
     } else {
       parts.push(`<kbd><span class="char-up">↵</span></kbd> start / stop`);
-      if (hasRunning) parts.push(`<kbd>⇧<span class="char-up">↵</span></kbd> parallel`);
+      if (hasRunning) parts.push(`<kbd>⇧+start</kbd> parallel`);
       parts.push(`<kbd>↑↓</kbd> select`);
       parts.push(`<kbd>tab</kbd> log`);
     }
+  } else if (hasRunning) {
+    parts.push(`<kbd>⇧+start</kbd> parallel`);
   }
   if (navIdx >= 0) {
     parts.length = 0;
@@ -1793,7 +1795,9 @@ function render() {
         : (tagNameForTask(task) || '') === parsedQuery.tagName
     )
   );
-  document.getElementById('search-create-hint').classList.toggle('visible', !!(canCreateFromInput && !exactMatch));
+  const showCreateHint = !!(canCreateFromInput && !exactMatch);
+  document.getElementById('search-create-hint').classList.toggle('visible', showCreateHint);
+  document.getElementById('search-parallel-hint').classList.toggle('visible', showCreateHint && !!runningTask());
 
   updateHintRow();
 
@@ -1936,18 +1940,27 @@ async function startFromQuery(rawQuery, { parallel = false } = {}) {
   return true;
 }
 
-document.getElementById('search-create-hint').addEventListener('mousedown', async e => {
-  e.preventDefault(); // keep focus on input
+async function startFromCreateHint(parallel) {
   const q = query();
   if (!q) return;
   if (q.includes('#') && !parseTaskInput(q).hasTag) return;
   const task = createOrFindTaskFromQuery(q);
   if (!task) return;
-  await startTask(task, { parallel: e.shiftKey });
+  await startTask(task, { parallel });
   searchEl.value = '';
   selIdx = -1;
   closeTagAutocomplete();
   render();
+}
+
+document.getElementById('search-create-hint').addEventListener('mousedown', async e => {
+  e.preventDefault(); // keep focus on input
+  await startFromCreateHint(e.shiftKey);
+});
+
+document.getElementById('search-parallel-hint').addEventListener('mousedown', async e => {
+  e.preventDefault(); // keep focus on input
+  await startFromCreateHint(true);
 });
 
 searchEl.addEventListener('input', () => {

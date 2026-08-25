@@ -103,6 +103,81 @@ test.describe('Parallel task tracking', () => {
   });
 });
 
+test.describe('Inline parallel hint', () => {
+
+  test('typing a new name while a task runs shows ⇧↵ parallel next to ↵ new', async ({ page }) => {
+    const now = Date.now();
+    await seedTasks(page, [
+      { id: 'a', name: 'Alpha', sessions: [{ start: now - 100, end: null }] }, // running
+    ]);
+
+    await page.locator('#search').fill('Brand new task');
+
+    await expect(page.locator('#search-create-hint')).toBeVisible();
+    await expect(page.locator('#search-parallel-hint')).toBeVisible();
+    await expect(page.locator('#search-parallel-hint')).toContainText('parallel');
+  });
+
+  test('parallel hint is hidden when nothing is running', async ({ page }) => {
+    const now = Date.now();
+    await seedTasks(page, [
+      { id: 'a', name: 'Alpha', sessions: [{ start: now - 2 * hour, end: now - hour }] },
+    ]);
+
+    await page.locator('#search').fill('Brand new task');
+
+    await expect(page.locator('#search-create-hint')).toBeVisible();
+    await expect(page.locator('#search-parallel-hint')).toBeHidden();
+  });
+
+  test('clicking the parallel hint starts the new task without stopping the running one', async ({ page }) => {
+    const now = Date.now();
+    await seedTasks(page, [
+      { id: 'a', name: 'Alpha', sessions: [{ start: now - 100, end: null }] }, // running
+    ]);
+
+    await page.locator('#search').fill('Brand new task');
+    await page.locator('#search-parallel-hint').click();
+
+    await expect(page.locator('.task-row.running')).toHaveCount(2);
+  });
+});
+
+test.describe('Guide row parallel hint', () => {
+
+  test('shows ⇧+start parallel while a task runs, even with search unfocused', async ({ page }) => {
+    const now = Date.now();
+    await seedTasks(page, [
+      { id: 'a', name: 'Alpha', sessions: [{ start: now - 100, end: null }] }, // running
+    ]);
+    await page.locator('#search').blur();
+
+    await expect(page.locator('#search-hint')).toContainText('⇧+start');
+    await expect(page.locator('#search-hint')).toContainText('parallel');
+  });
+
+  test('shows ⇧+start parallel while a task runs with search focused', async ({ page }) => {
+    const now = Date.now();
+    await seedTasks(page, [
+      { id: 'a', name: 'Alpha', sessions: [{ start: now - 100, end: null }] }, // running
+    ]);
+    await page.locator('#search').focus();
+
+    await expect(page.locator('#search-hint')).toContainText('⇧+start');
+    await expect(page.locator('#search-hint')).toContainText('parallel');
+  });
+
+  test('no parallel hint when nothing is running', async ({ page }) => {
+    const now = Date.now();
+    await seedTasks(page, [
+      { id: 'a', name: 'Alpha', sessions: [{ start: now - 2 * hour, end: now - hour }] },
+    ]);
+    await page.locator('#search').blur();
+
+    await expect(page.locator('#search-hint')).not.toContainText('parallel');
+  });
+});
+
 test.describe('Report overlap totals', () => {
 
   test('report shows summed total and overlap-free total', async ({ page }) => {
