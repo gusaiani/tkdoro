@@ -717,10 +717,14 @@ document.getElementById('reset-password').addEventListener('keydown', e => {
 });
 
 function logout() {
-  const cur = runningTask();
-  if (cur) { cur.sessions.find(s => !s.end).end = Date.now(); persist(); }
+  const running = runningTasks();
+  if (running.length) {
+    const now = Date.now();
+    running.forEach(t => { t.sessions.find(s => !s.end).end = now; });
+    persist();
+  }
   if (ticker) { clearInterval(ticker); ticker = null; }
-  clearPomodoroTimer();
+  clearAllPomodoroTimers();
   localStorage.removeItem('tt_token');
   subscriptionStatus = 'free';
   isComped = false;
@@ -832,7 +836,7 @@ document.addEventListener('click', e => {
 
 // ── Pomodoro ──────────────────────────────────────────────────────────────────
 let pomodoroActive = localStorage.getItem('tt_pomodoro_active') === 'true';
-let pomodoroTimer  = null;
+const pomodoroTimers = new Map(); // task id → timeout handle, one per running task
 
 const pomodoroBtn  = document.getElementById('header-pomodoro');
 const pomodoroMins = document.getElementById('header-pomodoro-mins');
@@ -853,19 +857,25 @@ pomodoroBtn.addEventListener('click', () => {
   if (pomodoroActive) {
     getAudioCtx().resume(); // warm up while we have a user gesture
     if (Notification.permission === 'default') Notification.requestPermission();
-    // If a task is already running, arm from its current session start
-    const running = runningTask();
-    if (running) {
+    // If tasks are already running, arm each from its current session start
+    for (const running of runningTasks()) {
       const session = running.sessions.find(s => !s.end);
-      if (session) armPomodoroTimer(taskLabel(running), session.start);
+      if (session) armPomodoroTimer(running.id, taskLabel(running), session.start);
     }
   } else {
-    clearPomodoroTimer();
+    clearAllPomodoroTimers();
   }
 });
 
-function clearPomodoroTimer() {
-  if (pomodoroTimer) { clearTimeout(pomodoroTimer); pomodoroTimer = null; }
+function clearPomodoroTimer(taskId) {
+  const handle = pomodoroTimers.get(taskId);
+  if (handle) { clearTimeout(handle); pomodoroTimers.delete(taskId); }
+  pomodoroBtn.classList.remove('ringing');
+}
+
+function clearAllPomodoroTimers() {
+  pomodoroTimers.forEach(handle => clearTimeout(handle));
+  pomodoroTimers.clear();
   pomodoroBtn.classList.remove('ringing');
 }
 
@@ -902,14 +912,14 @@ function playPomodoroChime() {
   } catch {}
 }
 
-function armPomodoroTimer(taskName, sessionStart) {
-  clearPomodoroTimer();
+function armPomodoroTimer(taskId, taskName, sessionStart) {
+  clearPomodoroTimer(taskId);
   if (!pomodoroActive) return;
   const totalMs   = (parseInt(pomodoroMins.value) || 25) * 60 * 1000;
   const remaining = totalMs - (Date.now() - sessionStart);
   if (remaining <= 0) return; // session already exceeded pomodoro duration
-  pomodoroTimer = setTimeout(() => {
-    pomodoroTimer = null;
+  pomodoroTimers.set(taskId, setTimeout(() => {
+    pomodoroTimers.delete(taskId);
     playPomodoroChime();
     // In-app: bounce the tomato
     pomodoroBtn.classList.remove('ringing');
@@ -920,7 +930,7 @@ function armPomodoroTimer(taskName, sessionStart) {
     if (Notification.permission === 'granted') {
       new Notification('Doing It — pomodoro done 🍅', { body: `Time to stop "${taskName}" and take a break.` });
     }
-  }, remaining);
+  }, remaining));
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -974,7 +984,8 @@ const taskTodayMs = t => t.sessions
   .reduce((a,s) => a + ((s.end ?? Date.now()) - s.start), 0);
 
 const allTodayMs = () => data.tasks.reduce((a,t) => a + taskTodayMs(t), 0);
-const runningTask = () => data.tasks.find(t => t.sessions.some(s => !s.end)) ?? null;
+const runningTasks = () => data.tasks.filter(t => t.sessions.some(s => !s.end));
+const runningTask  = () => runningTasks()[0] ?? null;
 
 function allWeekMs() {
   const today = new Date();
@@ -992,7 +1003,7 @@ function allWeekMs() {
 
 // ── Actions ───────────────────────────────────────────────────────────────────
 let _startingTask = false;
-async function startTask(task) {
+async function startTask(task, { parallel = false } = {}) {
   if (IS_SHARED || _startingTask) return;
   _startingTask = true;
   try {
@@ -1003,17 +1014,21 @@ async function startTask(task) {
     if (!allowed) return;
   }
 
-  const cur = runningTask();
-  if (cur && cur.id !== task.id) {
-    cur.sessions.find(s => !s.end).end = Date.now();
+  // Plain start switches tasks; a parallel start leaves other tasks running
+  if (!parallel) {
+    for (const cur of runningTasks()) {
+      if (cur.id === task.id) continue;
+      cur.sessions.find(s => !s.end).end = Date.now();
+      clearPomodoroTimer(cur.id);
+    }
   }
   if (isRunning) {
     task.sessions.find(s => !s.end).end = Date.now();
-    clearPomodoroTimer();
+    clearPomodoroTimer(task.id);
   } else {
     const sessionStart = Date.now();
     task.sessions.push({ start: sessionStart, end: null });
-    armPomodoroTimer(taskLabel(task), sessionStart);
+    armPomodoroTimer(task.id, taskLabel(task), sessionStart);
   }
   persist();
   render();
@@ -1129,11 +1144,13 @@ function fmtTabTimer(ms) {
 }
 
 function updateTabTitle() {
-  const cur = runningTask();
-  if (!cur) { document.title = 'Doing It'; return; }
-  const session = cur.sessions.find(s => !s.end);
-  if (!session) { document.title = 'Doing It'; return; }
-  document.title = `${fmtTabTimer(Date.now() - session.start)} · ${taskLabel(cur)} · Doing It`;
+  const running = runningTasks()
+    .map(t => ({ task: t, start: t.sessions.find(s => !s.end)?.start }))
+    .filter(r => r.start != null)
+    .sort((a, b) => a.start - b.start);
+  if (!running.length) { document.title = 'Doing It'; return; }
+  const extra = running.length > 1 ? ` +${running.length - 1}` : '';
+  document.title = `${fmtTabTimer(Date.now() - running[0].start)} · ${taskLabel(running[0].task)}${extra} · Doing It`;
 }
 
 function liveUpdate() {
@@ -1250,10 +1267,10 @@ function navCollapse(item) {
   render();
 }
 
-async function navEnter(item) {
+async function navEnter(item, parallel = false) {
   if (item.type === 'task' || item.type === 'day-task') {
     const task = data.tasks.find(t => t.id === item.taskId);
-    if (task) await startTask(task);
+    if (task) await startTask(task, { parallel });
     render();
   } else if (item.type === 'later-input') {
     document.getElementById('later-input').focus();
@@ -1720,6 +1737,7 @@ function updateHintRow() {
       }
     } else {
       parts.push(`<kbd><span class="char-up">↵</span></kbd> start / stop`);
+      if (hasRunning) parts.push(`<kbd>⇧<span class="char-up">↵</span></kbd> parallel`);
       parts.push(`<kbd>↑↓</kbd> select`);
       parts.push(`<kbd>tab</kbd> log`);
     }
@@ -1745,7 +1763,8 @@ function render() {
   closeMoveDropdown();
   const q      = query();
   const tasks  = filtered();
-  const running = runningTask();
+  const runningList = runningTasks();
+  const running = runningList[0] ?? null;
 
   // clamp nav index
   if (navIdx >= 0) {
@@ -1860,12 +1879,15 @@ function render() {
   totalRow.classList.toggle('nav-highlight', !!(nav && nav.type === 'today'));
   listEl.style.display   = listShown ? '' : 'none';
   if (!listShown && running) {
-    const sessionStart = running.sessions.find(s => !s.end).start;
+    const names = runningList.map(t => esc(taskLabel(t))).join(' &nbsp;·&nbsp; ');
+    const sessionPart = runningList.length === 1
+      ? `<span class="t-time-label">session</span> <span data-live-session="${running.sessions.find(s => !s.end).start}">${fmt(Date.now() - running.sessions.find(s => !s.end).start)}</span>
+        <span class="t-time-sep">·</span>`
+      : '';
     totalRow.innerHTML = `
-      <span class="total-label">today &nbsp;·&nbsp; <span class="total-active-name">${esc(taskLabel(running))}</span></span>
+      <span class="total-label">today &nbsp;·&nbsp; <span class="total-active-name">${names}</span></span>
       <span class="total-time total-time-running">
-        <span class="t-time-label">session</span> <span data-live-session="${sessionStart}">${fmt(Date.now() - sessionStart)}</span>
-        <span class="t-time-sep">·</span>
+        ${sessionPart}
         <span class="t-time-label">today</span> <span id="total-time">${fmt(allTodayMs())}</span>
       </span>
       <span class="total-expand expanded"></span>`;
@@ -1884,7 +1906,7 @@ function render() {
 }
 
 // ── Keyboard ──────────────────────────────────────────────────────────────────
-async function startFromQuery(rawQuery) {
+async function startFromQuery(rawQuery, { parallel = false } = {}) {
   const parsed = parseTaskInput(rawQuery);
   if (!parsed.taskName) return false;
 
@@ -1892,7 +1914,7 @@ async function startFromQuery(rawQuery) {
     if (!parsed.hasTag) return false;
     const taggedTask = createOrFindTaskFromQuery(rawQuery);
     if (!taggedTask) return false;
-    await startTask(taggedTask);
+    await startTask(taggedTask, { parallel });
     return true;
   }
 
@@ -1910,7 +1932,7 @@ async function startFromQuery(rawQuery) {
   }
   if (!targetTask) return false;
 
-  await startTask(targetTask);
+  await startTask(targetTask, { parallel });
   return true;
 }
 
@@ -1921,7 +1943,7 @@ document.getElementById('search-create-hint').addEventListener('mousedown', asyn
   if (q.includes('#') && !parseTaskInput(q).hasTag) return;
   const task = createOrFindTaskFromQuery(q);
   if (!task) return;
-  await startTask(task);
+  await startTask(task, { parallel: e.shiftKey });
   searchEl.value = '';
   selIdx = -1;
   closeTagAutocomplete();
@@ -2022,7 +2044,7 @@ searchEl.addEventListener('keydown', async e => {
   } else if (e.key === 'Enter') {
     e.preventDefault();
     if (!q && selIdx < 0) return;
-    const started = await startFromQuery(q);
+    const started = await startFromQuery(q, { parallel: e.shiftKey });
     if (started) {
       searchEl.value = '';
       selIdx = -1;
@@ -2148,7 +2170,7 @@ listEl.addEventListener('click', async e => {
   const playBtn = e.target.closest('.t-play');
   if (playBtn) {
     const task = data.tasks.find(t => t.id === playBtn.dataset.id);
-    if (task) { await startTask(task); searchEl.blur(); }
+    if (task) { await startTask(task, { parallel: e.shiftKey }); searchEl.blur(); }
     return;
   }
 
@@ -2226,7 +2248,7 @@ document.addEventListener('keydown', async e => {
     }
     if (e.key === 'Enter') {
       e.preventDefault();
-      await navEnter(item);
+      await navEnter(item, e.shiftKey);
       scrollNavIntoView();
       return;
     }
@@ -2266,10 +2288,13 @@ document.addEventListener('keydown', async e => {
       scrollNavIntoView();
       return;
     }
-    const digit = e.key === '0' ? 10 : parseInt(e.key);
+    // Shift+digit produces punctuation in e.key, so fall back to e.code
+    const digit = /^Digit[0-9]$/.test(e.code ?? '')
+      ? (e.code === 'Digit0' ? 10 : parseInt(e.code.slice(5)))
+      : (e.key === '0' ? 10 : parseInt(e.key));
     if (digit >= 1 && digit <= 10) {
       const task = filtered()[digit - 1];
-      if (task) { e.preventDefault(); await startTask(task); }
+      if (task) { e.preventDefault(); await startTask(task, { parallel: e.shiftKey }); }
       return;
     }
   }
@@ -2305,10 +2330,11 @@ document.addEventListener('keydown', async e => {
   if (searchEl.value) {
     searchEl.blur(); // blur handler clears text and resets state
   } else {
-    const cur = runningTask();
-    if (cur) {
-      cur.sessions.find(s => !s.end).end = Date.now();
-      clearPomodoroTimer();
+    const running = runningTasks();
+    if (running.length) {
+      const now = Date.now();
+      running.forEach(t => { t.sessions.find(s => !s.end).end = now; });
+      clearAllPomodoroTimers();
       persist();
       render();
     }
@@ -2523,6 +2549,23 @@ function fmtHM(ms) {
   return `${h}h ${m}m`;
 }
 
+// Total length of the union of [start, end] intervals — overlap counted once
+function mergedIntervalsMs(intervals) {
+  const sorted = [...intervals].sort((a, b) => a[0] - b[0]);
+  let total = 0, curStart = null, curEnd = null;
+  for (const [start, end] of sorted) {
+    if (curEnd === null || start > curEnd) {
+      if (curEnd !== null) total += curEnd - curStart;
+      curStart = start;
+      curEnd = end;
+    } else if (end > curEnd) {
+      curEnd = end;
+    }
+  }
+  if (curEnd !== null) total += curEnd - curStart;
+  return total;
+}
+
 async function initReportPage() {
   document.getElementById('app').innerHTML = `
     <div class="theme-bar theme-bar-sub">
@@ -2557,9 +2600,14 @@ async function initReportPage() {
       .filter(t => t.total_ms > 0)
       .sort((a, b) => b.total_ms - a.total_ms);
     const total_ms = tasks.reduce((a, t) => a + t.total_ms, 0);
+    const no_overlap_ms = mergedIntervalsMs(guestData.tasks.flatMap(t =>
+      (t.sessions || [])
+        .filter(s => s.end && s.start >= thirtyDaysAgo)
+        .map(s => [s.start, s.end])
+    ));
     const period_start = new Date(thirtyDaysAgo).toISOString().slice(0, 10);
     const period_end = new Date().toISOString().slice(0, 10);
-    renderReport(contentEl, { tasks, total_ms, period_start, period_end });
+    renderReport(contentEl, { tasks, total_ms, no_overlap_ms, period_start, period_end });
     return;
   }
 
@@ -2611,12 +2659,19 @@ function renderReport(el, data) {
     ? `${fmtDate(data.period_start)} – ${fmtDate(data.period_end)}`
     : 'Last 30 days';
 
+  const noOverlapHTML = data.no_overlap_ms == null ? '' : `
+    <div class="report-total report-total-secondary" title="Time spent tracking, with parallel tasks counted once">
+      <span class="report-total-label">Without overlap</span>
+      <span class="report-total-time">${fmtHM(data.no_overlap_ms)}</span>
+    </div>`;
+
   el.innerHTML = `
     <div class="report-period">${periodLabel}</div>
-    <div class="report-total">
+    <div class="report-total" title="Sum of all task time — parallel tasks each count in full">
       <span class="report-total-label">Total</span>
       <span class="report-total-time">${fmtHM(data.total_ms)}</span>
     </div>
+    ${noOverlapHTML}
     <div class="report-rows">${rows}</div>`;
 }
 
