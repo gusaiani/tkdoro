@@ -799,6 +799,8 @@ html[data-theme="system"] #auth-screen {
   margin: 0 2px;
 }
 
+.net-time { color: var(--dimmer); }
+
 /* ── Shared disclosure caret (macOS-style) ── */
 .t-expand,
 .day-chevron,
