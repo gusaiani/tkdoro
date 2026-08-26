@@ -200,18 +200,16 @@ You can track several tasks at the same time — useful when you genuinely work 
 5. With the pomodoro enabled, each running task gets its own independent timer, armed from that task's session start.
 6. Each parallel session counts toward the free tier's 5-sessions-per-day limit individually.
 
-The main page's "today" and week totals are plain sums across tasks, so an hour spent running two tasks counts as two hours there. The monthly report shows both readings — see below.
+**Aggregate totals: total and net**
 
-**Report: total with and without overlap**
+Because parallel sessions double-count in a plain sum, every aggregate time shows two readings:
 
-The monthly report (`/report`, and the shared `/shared/{token}/report`) shows two totals:
-
-| Total | Meaning |
-|-------|---------|
+| Reading | Meaning |
+|---------|---------|
 | **Total** | Sum of all task time. An hour with two tasks running counts as 2h. |
-| **Without overlap** | Wall-clock time spent tracking: overlapping sessions are merged and counted once. |
+| **Net** | Wall-clock time spent tracking: overlapping sessions are merged and counted once. |
 
-The two are equal if you never track in parallel. The backend returns the merged figure as `no_overlap_ms` in `GET /report/monthly`; the guest report computes it locally from `localStorage`.
+The two are equal if you never track in parallel, and the net figure is only rendered when it differs from the total. It appears as a dimmer `· net H:MM:SS` suffix on the main page's **today** row, the **week** row, and each **day** row in the history, updating live while tasks run. The monthly report (`/report`, and the shared `/shared/{token}/report`) shows the same two figures as **Total** and **Net** lines above the task bars. The backend returns the merged figure as `no_overlap_ms` in `GET /report/monthly`; the guest report and the main page compute it locally from `localStorage`.
 
 ## Seed data
 

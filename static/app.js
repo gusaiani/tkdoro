@@ -984,21 +984,42 @@ const taskTodayMs = t => t.sessions
   .reduce((a,s) => a + ((s.end ?? Date.now()) - s.start), 0);
 
 const allTodayMs = () => data.tasks.reduce((a,t) => a + taskTodayMs(t), 0);
+const netTodayMs = () => mergedIntervalsMs(data.tasks.flatMap(t => t.sessions
+  .filter(s => isToday(s.start))
+  .map(s => [s.start, s.end ?? Date.now()])));
 const runningTasks = () => data.tasks.filter(t => t.sessions.some(s => !s.end));
 const runningTask  = () => runningTasks()[0] ?? null;
 
-function allWeekMs() {
+function weekStartTs() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const dow = today.getDay();
   const monday = new Date(today);
   monday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
-  const mondayTs = monday.getTime();
+  return monday.getTime();
+}
+
+function allWeekMs() {
+  const mondayTs = weekStartTs();
   return data.tasks.reduce((total, t) =>
     total + t.sessions
       .filter(s => s.start >= mondayTs)
       .reduce((a, s) => a + ((s.end ?? Date.now()) - s.start), 0)
   , 0);
+}
+
+function netWeekMs() {
+  const mondayTs = weekStartTs();
+  return mergedIntervalsMs(data.tasks.flatMap(t => t.sessions
+    .filter(s => s.start >= mondayTs)
+    .map(s => [s.start, s.end ?? Date.now()])));
+}
+
+// "· net H:MM:SS" suffix for aggregate rows — empty unless parallel sessions
+// made the net (overlap counted once) smaller than the plain sum
+function netSuffixHTML(totalMs, netMs, id = '') {
+  if (netMs >= totalMs) return '';
+  return ` <span class="t-time-sep">·</span> <span class="t-time-label">net</span> <span class="net-time"${id ? ` id="${id}"` : ''}>${fmt(netMs)}</span>`;
 }
 
 // ── Actions ───────────────────────────────────────────────────────────────────
@@ -1167,8 +1188,12 @@ function liveUpdate() {
   });
   const tot = document.getElementById('total-time');
   if (tot) tot.textContent = fmt(allTodayMs());
+  const totNet = document.getElementById('total-net-time');
+  if (totNet) totNet.textContent = fmt(netTodayMs());
   const wk = document.getElementById('week-total-time');
   if (wk) wk.textContent = fmt(allWeekMs());
+  const wkNet = document.getElementById('week-net-time');
+  if (wkNet) wkNet.textContent = fmt(netWeekMs());
   updateTabTitle();
 }
 
@@ -1437,6 +1462,12 @@ function dayTotalMs(dateStr) {
   , 0);
 }
 
+function netDayMs(dateStr) {
+  return mergedIntervalsMs(data.tasks.flatMap(t => t.sessions
+    .filter(s => s.end && localDateStr(new Date(s.start)) === dateStr)
+    .map(s => [s.start, s.end])));
+}
+
 function tasksForDay(dateStr) {
   return data.tasks
     .map(t => {
@@ -1484,7 +1515,7 @@ function renderHistory() {
     return `
       <div class="day-row${dayHL}" data-date="${dateStr}">
         <span class="day-label"><span class="day-name">${name}</span> <span class="day-date">${date}</span></span>
-        <span class="day-total">${fmt(total)}</span>
+        <span class="day-total">${fmt(total)}${netSuffixHTML(total, netDayMs(dateStr))}</span>
         <span class="day-chevron${isExp ? ' expanded' : ''}"></span>
       </div>
       ${isExp ? `<div class="day-tasks">${
@@ -1518,7 +1549,7 @@ function renderHistory() {
   historyEl.innerHTML = `
     <div class="total-row week-total-row${weekHL}">
       <span class="total-label">week</span>
-      <span class="total-time" id="week-total-time">${fmt(weekTotal)}</span>
+      <span class="total-time"><span id="week-total-time">${fmt(weekTotal)}</span>${netSuffixHTML(weekTotal, netWeekMs(), 'week-net-time')}</span>
       <span class="week-chevron${weekVisible ? ' expanded' : ''}"></span>
     </div>
   ` + dayRows;
@@ -1892,13 +1923,13 @@ function render() {
       <span class="total-label">today &nbsp;·&nbsp; <span class="total-active-name">${names}</span></span>
       <span class="total-time total-time-running">
         ${sessionPart}
-        <span class="t-time-label">today</span> <span id="total-time">${fmt(allTodayMs())}</span>
+        <span class="t-time-label">today</span> <span id="total-time">${fmt(allTodayMs())}</span>${netSuffixHTML(allTodayMs(), netTodayMs(), 'total-net-time')}
       </span>
       <span class="total-expand expanded"></span>`;
   } else {
     totalRow.innerHTML = `
       <span class="total-label">today</span>
-      <span class="total-time" id="total-time">${fmt(allTodayMs())}</span>
+      <span class="total-time"><span id="total-time">${fmt(allTodayMs())}</span>${netSuffixHTML(allTodayMs(), netTodayMs(), 'total-net-time')}</span>
       <span class="total-expand${listShown ? ' expanded' : ''}"></span>`;
   }
 
@@ -2674,7 +2705,7 @@ function renderReport(el, data) {
 
   const noOverlapHTML = data.no_overlap_ms == null ? '' : `
     <div class="report-total report-total-secondary" title="Time spent tracking, with parallel tasks counted once">
-      <span class="report-total-label">Without overlap</span>
+      <span class="report-total-label">Net</span>
       <span class="report-total-time">${fmtHM(data.no_overlap_ms)}</span>
     </div>`;
 
