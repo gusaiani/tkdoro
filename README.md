@@ -272,6 +272,45 @@ Logged-in users can share a read-only view of their tasks, history, done list, a
 | `GET` | `/shared/{token}/done/stats` | Public: done stats and sparkline |
 | `GET` | `/shared/{token}/report/monthly` | Public: 30-day time report |
 
+## Shared timesheets per #tag
+
+Any `#tag` can be shared as its own read-only timesheet: a page showing the hours worked on that tag this week, this month and this year. It is meant for a client who wants to follow billable hours without an account, and without seeing the rest of your work.
+
+**How it works**
+
+1. Click "share live view" in the top bar. Below the whole-profile "Live sharing" toggle, the popover lists every `#tag` in your account.
+2. Click "Enable" next to a tag to mint a link like `https://doingit.online/timesheet/<uuid>`, then "Copy". Each tag gets its own token, so a viewer only ever sees that one tag.
+3. The page shows three figures (week, month, year), each as `H:MM` and as decimal hours for invoicing, plus a breakdown by task and by day. The year view breaks down by month instead.
+4. It refetches every 5 seconds and ticks every second while a session is running, so a client watching the page sees an open session grow in real time.
+5. Click "Disable" to revoke a link. Deleting the tag revokes it as well.
+
+**What counts**
+
+- Only sessions on tasks carrying that tag. Untagged tasks, other tags, and other users' data never appear.
+- A running session counts up to the current moment.
+- Weeks start on Monday, as everywhere else in the app. Month and year are calendar periods in the *viewer's* timezone: the page sends its UTC offset as the `tz` query parameter, so a client abroad sees their own week.
+- Sessions are clipped to the period, so a session running across midnight on a Sunday counts in both weeks, split at the boundary.
+- Each period shows **Total** and, when parallel tracking makes them differ, **Net** (overlapping sessions counted once). See "Parallel tracking".
+
+**API endpoints**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/share/tags` | Tags with sharing enabled, and their tokens (auth required) |
+| `POST` | `/share/tags/{project_id}/enable` | Mint or return that tag's token (auth required) |
+| `POST` | `/share/tags/{project_id}/disable` | Revoke that tag's link (auth required) |
+| `GET` | `/timesheet/{token}/data?tz={offset}` | Public: week, month and year figures for the tag |
+| `GET` | `/timesheet/{token}` | Public: the timesheet page |
+
+Tokens live in the `tag_shares` table, one row per `(user_id, project_id)`. Tag membership itself lives in the `user_data.tasks_json` blob (see "Data"), so the timesheet resolves the tag's task ids from there and then aggregates the relational `sessions` rows.
+
+**Local testing**
+
+1. Sign in, then type `client work #acme` and press `↵`. Leave it running for a minute.
+2. Open "share live view", click "Enable" next to `#acme`, then "Copy".
+3. Paste the link into a private window. The week figure should tick up while the session runs.
+4. Click "Disable", then reload the link: it should report that the timesheet is no longer active.
+
 ## Task ordering
 
 Today's tasks are ordered by most recently finished session. When you stop a running task, it stays at the top of the list. Running tasks always appear first, followed by tasks sorted by their latest completed session timestamp (descending). This means the task you just worked on is always easy to find.

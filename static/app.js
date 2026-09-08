@@ -47,6 +47,11 @@ const SHARED_MATCH = location.pathname.match(/^\/shared\/([0-9a-f]{8}-[0-9a-f]{4
 const SHARED_TOKEN = SHARED_MATCH ? SHARED_MATCH[1] : null;
 const IS_SHARED = !!SHARED_TOKEN;
 
+// ── Per-tag timesheet ────────────────────────────────────────────────────────
+const TIMESHEET_MATCH = location.pathname.match(/^\/timesheet\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/);
+const TIMESHEET_TOKEN = TIMESHEET_MATCH ? TIMESHEET_MATCH[1] : null;
+const IS_TIMESHEET = !!TIMESHEET_TOKEN;
+
 // ── Persistence ───────────────────────────────────────────────────────────────
 const GUEST_KEY        = 'tt_guest_tasks';
 const GUEST_DONE_KEY   = 'tt_guest_done';
@@ -760,6 +765,83 @@ async function loadShareState() {
       _shareToken = s.share_token || null;
     }
   } catch {}
+  await loadTagShares();
+}
+
+// project id → share token, for the per-tag timesheet links
+let _tagShares = new Map();
+
+async function loadTagShares() {
+  const token = localStorage.getItem('tt_token');
+  if (!token) return;
+  try {
+    const r = await fetch('/share/tags', { headers: { 'Authorization': `Bearer ${token}` } });
+    if (!r.ok) return;
+    const { shares } = await r.json();
+    _tagShares = new Map(shares.map(s => [s.project_id, s.token]));
+  } catch {}
+}
+
+function timesheetUrl(shareToken) {
+  return `${location.origin}/timesheet/${shareToken}`;
+}
+
+function renderTagShares() {
+  const listEl = document.getElementById('share-tag-list');
+  if (!listEl) return;
+  const tags = [...data.projects].sort((a, b) => a.name.localeCompare(b.name));
+  if (!tags.length) {
+    listEl.innerHTML = '<div class="share-tag-empty">Tag a task with <code>#something</code> to share its timesheet.</div>';
+    return;
+  }
+  listEl.innerHTML = tags.map(tag => {
+    const shareToken = _tagShares.get(tag.id);
+    const linkRow = shareToken ? `
+      <div class="share-popover-link-row">
+        <input class="share-popover-url" value="${esc(timesheetUrl(shareToken))}" readonly>
+        <button class="share-popover-copy" data-copy-tag="${esc(tag.id)}">Copy</button>
+      </div>` : '';
+    return `
+      <div class="share-tag-item" data-tag-id="${esc(tag.id)}">
+        <div class="share-popover-row">
+          <span class="share-tag-name">#${esc(tag.name)}</span>
+          <button class="share-popover-toggle share-tag-toggle${shareToken ? ' active' : ''}" data-toggle-tag="${esc(tag.id)}">${shareToken ? 'Disable' : 'Enable'}</button>
+        </div>
+        ${linkRow}
+      </div>`;
+  }).join('');
+}
+
+async function toggleTagShare(projectId) {
+  const token = localStorage.getItem('tt_token');
+  if (!token) return;
+  const enabled = _tagShares.has(projectId);
+  const path = `/share/tags/${encodeURIComponent(projectId)}/${enabled ? 'disable' : 'enable'}`;
+  try {
+    const r = await fetch(path, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+    if (!r.ok) return;
+    if (enabled) {
+      _tagShares.delete(projectId);
+    } else {
+      _tagShares.set(projectId, (await r.json()).token);
+    }
+    renderTagShares();
+  } catch {}
+}
+
+async function copyToClipboard(text, btn) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const tmp = document.createElement('textarea');
+    tmp.value = text;
+    document.body.appendChild(tmp);
+    tmp.select();
+    document.execCommand('copy');
+    tmp.remove();
+  }
+  btn.textContent = 'Copied!';
+  setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
 }
 
 function updateSharePopover() {
@@ -778,6 +860,7 @@ function updateSharePopover() {
     toggleBtn.classList.remove('active');
     linkRow.style.display = 'none';
   }
+  renderTagShares();
 }
 
 document.getElementById('header-share').addEventListener('click', () => {
@@ -823,6 +906,16 @@ document.getElementById('share-copy').addEventListener('click', async () => {
   const btn = document.getElementById('share-copy');
   btn.textContent = 'Copied!';
   setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+});
+
+document.getElementById('share-tag-list').addEventListener('click', e => {
+  const toggle = e.target.closest('[data-toggle-tag]');
+  if (toggle) { toggleTagShare(toggle.dataset.toggleTag); return; }
+  const copy = e.target.closest('[data-copy-tag]');
+  if (copy) {
+    const url = copy.closest('.share-popover-link-row').querySelector('.share-popover-url').value;
+    copyToClipboard(url, copy);
+  }
 });
 
 // Close popover when clicking outside
@@ -2885,10 +2978,197 @@ async function initSharedReportPage() {
   }
 }
 
+// ── Timesheet page ──────────────────────────────────────────────────────────
+// Public, read-only view of one tag's hours: the page a client opens.
+
+const TIMESHEET_PERIODS = [
+  { key: 'week',  label: 'This week' },
+  { key: 'month', label: 'This month' },
+  { key: 'year',  label: 'This year' },
+];
+const TIMESHEET_POLL_MS = 5000;
+
+let tsData = null;
+let tsPeriod = 'week';
+
+// Decimal hours for invoicing. Derived from whole minutes so it always agrees
+// with the H:MM figure beside it.
+function fmtDecimalHours(ms) {
+  return `${(Math.floor(ms / 60000) / 60).toFixed(2)} h`;
+}
+
+// Server figures are a snapshot taken at `now`; while something is running the
+// clock keeps moving, so add the time elapsed since that snapshot.
+function tsLive(period) {
+  const elapsed = tsData.running_count ? Math.max(0, Date.now() - tsData.now) : 0;
+  return {
+    total: period.total_ms + tsData.running_count * elapsed,
+    net: period.net_ms + elapsed,
+  };
+}
+
+function fmtTimesheetDate(iso) {
+  const d = new Date(iso + 'T12:00:00');
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function timesheetBars(rows, labelKey, maxMs) {
+  return rows.map((row, i) => {
+    const pct = maxMs ? Math.max(2, Math.round(row.total_ms / maxMs * 100)) : 2;
+    const color = REPORT_COLORS[i % REPORT_COLORS.length];
+    return `
+      <div class="report-row">
+        <div class="report-task-info">
+          <span class="report-task-name">${esc(row[labelKey])}</span>
+          ${row.session_count ? `<span class="report-task-meta">${row.session_count} session${row.session_count === 1 ? '' : 's'}</span>` : ''}
+        </div>
+        <div class="report-bar-wrap">
+          <div class="report-bar" style="width:${pct}%;background:${color}"></div>
+        </div>
+        <span class="report-task-time">${fmtHM(row.total_ms)}</span>
+      </div>`;
+  }).join('');
+}
+
+// Week and month break down by day; a year breaks down by month.
+function timesheetPeriodRows(periodKey) {
+  const period = tsData[periodKey];
+  const days = tsData.days.filter(d => d.date >= period.start && d.date <= period.end);
+  if (periodKey !== 'year') {
+    return days.map(d => ({
+      label: new Date(d.date + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }),
+      total_ms: d.total_ms,
+    }));
+  }
+  const byMonth = new Map();
+  for (const d of days) {
+    const key = d.date.slice(0, 7);
+    byMonth.set(key, (byMonth.get(key) || 0) + d.total_ms);
+  }
+  return [...byMonth.entries()].map(([key, total_ms]) => ({
+    label: new Date(key + '-01T12:00:00').toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
+    total_ms,
+  }));
+}
+
+function renderTimesheet() {
+  const el = document.getElementById('timesheet-page');
+  if (!el || !tsData) return;
+
+  const cards = TIMESHEET_PERIODS.map(({ key, label }) => {
+    const period = tsData[key];
+    const { total, net } = tsLive(period);
+    const netLine = net < total
+      ? `<div class="ts-card-net" id="ts-net-${key}" title="Parallel tasks counted once">net ${fmtHM(net)}</div>`
+      : '';
+    return `
+      <div class="ts-card">
+        <div class="ts-card-label">${label}</div>
+        <div class="ts-card-total" id="ts-total-${key}">${fmtHM(total)}</div>
+        <div class="ts-card-decimal" id="ts-decimal-${key}">${fmtDecimalHours(total)}</div>
+        ${netLine}
+        <div class="ts-card-range">${fmtTimesheetDate(period.start)} - ${fmtTimesheetDate(period.end)}</div>
+      </div>`;
+  }).join('');
+
+  const tabs = TIMESHEET_PERIODS.map(({ key, label }) =>
+    `<button class="ts-tab${key === tsPeriod ? ' active' : ''}" data-ts-period="${key}">${label}</button>`
+  ).join('');
+
+  const tasks = tsData[tsPeriod].tasks;
+  const periodRows = timesheetPeriodRows(tsPeriod);
+  const breakdown = tasks.length ? `
+    <div class="ts-section">
+      <div class="ts-section-title">By task</div>
+      <div class="report-rows">${timesheetBars(tasks, 'name', tasks[0].total_ms)}</div>
+    </div>
+    <div class="ts-section">
+      <div class="ts-section-title">${tsPeriod === 'year' ? 'By month' : 'By day'}</div>
+      <div class="report-rows">${timesheetBars(periodRows, 'label', Math.max(...periodRows.map(r => r.total_ms)))}</div>
+    </div>` : '<div class="done-empty">No tracked time in this period.</div>';
+
+  el.innerHTML = `
+    <h1 class="ts-title">#${esc(tsData.tag)}</h1>
+    <div class="ts-sub">
+      ${tsData.running_count
+        ? `<span class="ts-live-dot">●</span> tracking now`
+        : 'not tracking right now'}
+      <span class="ts-sub-sep">·</span> live timesheet, updates automatically
+    </div>
+    <div class="ts-cards">${cards}</div>
+    <div class="ts-tabs">${tabs}</div>
+    ${breakdown}
+    <div class="ts-footer">Tracked with <a href="/">Doing It</a>.</div>`;
+}
+
+// Keep the headline figures moving between polls
+function tickTimesheet() {
+  if (!tsData || !tsData.running_count) return;
+  for (const { key } of TIMESHEET_PERIODS) {
+    const { total, net } = tsLive(tsData[key]);
+    const totalEl = document.getElementById(`ts-total-${key}`);
+    if (totalEl) totalEl.textContent = fmtHM(total);
+    const decimalEl = document.getElementById(`ts-decimal-${key}`);
+    if (decimalEl) decimalEl.textContent = fmtDecimalHours(total);
+    const netEl = document.getElementById(`ts-net-${key}`);
+    if (netEl) netEl.textContent = `net ${fmtHM(net)}`;
+  }
+}
+
+async function loadTimesheet() {
+  const el = document.getElementById('timesheet-page');
+  try {
+    const r = await fetch(`/timesheet/${TIMESHEET_TOKEN}/data?tz=${new Date().getTimezoneOffset()}`);
+    if (r.status === 404) {
+      el.innerHTML = '<div class="done-empty">This timesheet link is no longer active.</div>';
+      tsData = null;
+      return false;
+    }
+    if (!r.ok) return true;
+    tsData = await r.json();
+    renderTimesheet();
+  } catch {
+    if (!tsData) el.innerHTML = '<div class="done-empty">Could not load this timesheet.</div>';
+  }
+  return true;
+}
+
+async function initTimesheetPage() {
+  document.body.classList.add('shared-view');
+  document.getElementById('app').innerHTML = `
+    <div class="theme-bar theme-bar-sub">
+      <a href="/" class="done-back">Doing It</a>
+      <button class="header-theme" id="theme-toggle-timesheet" title="Toggle theme"></button>
+    </div>
+    <div class="report-page timesheet-page" id="timesheet-page">
+      <div class="done-loading">Loading\u2026</div>
+    </div>`;
+
+  const btn = document.getElementById('theme-toggle-timesheet');
+  btn.innerHTML = THEME_ICONS[localStorage.getItem(THEME_KEY) || 'light'];
+  btn.addEventListener('click', () => { cycleTheme(); btn.innerHTML = THEME_ICONS[localStorage.getItem(THEME_KEY) || 'light']; });
+
+  document.getElementById('timesheet-page').addEventListener('click', e => {
+    const tab = e.target.closest('[data-ts-period]');
+    if (!tab) return;
+    tsPeriod = tab.dataset.tsPeriod;
+    renderTimesheet();
+  });
+
+  if (!await loadTimesheet()) return;
+  const poll = setInterval(async () => {
+    if (!await loadTimesheet()) clearInterval(poll);
+  }, TIMESHEET_POLL_MS);
+  setInterval(tickTimesheet, 1000);
+}
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 window.onGoogleLibraryLoad = initGoogleButton; // fires when GIS script finishes loading
 loadGoogleAuth();                               // fetches client_id from backend
-if (IS_SHARED) {
+if (IS_TIMESHEET) {
+  applyTheme();
+  initTimesheetPage();
+} else if (IS_SHARED) {
   applyTheme();
   const sub = sharedSubPath();
   if (sub === '/done-list') {

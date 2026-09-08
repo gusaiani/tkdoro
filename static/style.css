@@ -2006,6 +2006,167 @@ html[data-theme="dark"] .sl-date-input { color-scheme: dark; }
   text-align: right;
 }
 
+/* ── Timesheet page (per-tag share) ── */
+.timesheet-page {
+  padding-top: 8px;
+}
+
+.ts-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+
+.ts-sub {
+  font-size: 13px;
+  color: var(--dimmer);
+  margin: 4px 0 20px;
+}
+
+.ts-sub-sep { padding: 0 2px; }
+
+.ts-live-dot {
+  color: var(--red);
+  animation: ts-pulse 2s ease-in-out infinite;
+}
+
+@keyframes ts-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.25; }
+}
+
+.ts-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.ts-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  background: var(--surface);
+}
+
+.ts-card-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--dimmer);
+}
+
+.ts-card-total {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text);
+  margin-top: 4px;
+}
+
+.ts-card-decimal {
+  font-size: 13px;
+  color: var(--dim);
+}
+
+.ts-card-net {
+  font-size: 12px;
+  color: var(--dimmer);
+  margin-top: 2px;
+}
+
+.ts-card-range {
+  font-size: 11px;
+  color: var(--dimmer);
+  margin-top: 8px;
+}
+
+.ts-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.ts-tab {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--dim);
+  font-family: var(--font);
+  font-size: 12px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+.ts-tab:hover { color: var(--text); }
+.ts-tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.ts-section { margin-bottom: 24px; }
+
+.ts-section-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--dimmer);
+  margin-bottom: 10px;
+}
+
+.ts-footer {
+  font-size: 12px;
+  color: var(--dimmer);
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.ts-footer a { color: var(--accent); }
+
+@media (max-width: 560px) {
+  .ts-cards { grid-template-columns: 1fr; }
+}
+
+/* ── Per-tag share rows in the share popover ── */
+.share-popover-section {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.share-popover-hint {
+  font-size: 11px;
+  color: var(--dimmer);
+  margin: 4px 0 10px;
+  line-height: 1.4;
+}
+
+.share-tag-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.share-tag-item .share-popover-row { justify-content: space-between; }
+
+.share-tag-name {
+  font-size: 13px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-tag-empty {
+  font-size: 12px;
+  color: var(--dimmer);
+}
+.share-tag-empty code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+}
+
 /* ── Shared view ───────────────────────────────────────────────────────────── */
 
 .shared-cta {

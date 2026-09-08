@@ -85,6 +85,15 @@ def init_test_db():
             )
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS done_items_user_done ON done_items(user_id, done_at DESC)")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS tag_shares (
+                user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                project_id TEXT    NOT NULL,
+                token      TEXT    NOT NULL UNIQUE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                PRIMARY KEY (user_id, project_id)
+            )
+        """)
     conn.close()
 
 
