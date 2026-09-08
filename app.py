@@ -150,6 +150,15 @@ def init_db():
                         )
                     """)
                     cur.execute("CREATE INDEX IF NOT EXISTS done_items_user_done ON done_items(user_id, done_at DESC)")
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS tag_shares (
+                            user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            project_id TEXT    NOT NULL,
+                            token      TEXT    NOT NULL UNIQUE,
+                            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                            PRIMARY KEY (user_id, project_id)
+                        )
+                    """)
             return
         except psycopg2.OperationalError:
             if attempt == 9:
@@ -502,6 +511,20 @@ async def post_data(
                 (str(uuid_mod.uuid4()), task["id"], user_id, s["start"], s.get("end")),
             )
 
+    # ── Drop share links for tags the payload no longer defines ──────────────
+    # Only when `projects` is present: an older client that omits the key must
+    # not wipe the user's timesheet links.
+    projects = payload.get("projects")
+    if isinstance(projects, list):
+        project_ids = [p["id"] for p in projects if isinstance(p, dict) and p.get("id")]
+        if project_ids:
+            db.execute(
+                "DELETE FROM tag_shares WHERE user_id = %s AND project_id != ALL(%s)",
+                (user_id, project_ids),
+            )
+        else:
+            db.execute("DELETE FROM tag_shares WHERE user_id = %s", (user_id,))
+
     # ── Sync later items ─────────────────────────────────────────────────────
     db.execute("DELETE FROM later_items WHERE user_id = %s", (user_id,))
     for i, item in enumerate(later):
@@ -786,6 +809,233 @@ def shared_monthly_report(token: str, db: Annotated[psycopg2.extensions.cursor, 
     return _fetch_monthly_report(uid, db)
 
 
+# ── Tag timesheets ───────────────────────────────────────────────────────────
+
+def _local_naive(ts_ms: int, tz_offset_min: int) -> datetime:
+    """The wall-clock time a viewer at `tz_offset_min` sees for a UTC timestamp."""
+    utc = datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc).replace(tzinfo=None)
+    return utc - timedelta(minutes=tz_offset_min)
+
+
+def _to_utc_ms(local: datetime, tz_offset_min: int) -> int:
+    return int(
+        (local + timedelta(minutes=tz_offset_min)).replace(tzinfo=timezone.utc).timestamp() * 1000
+    )
+
+
+def _local_date_str(ts_ms: int, tz_offset_min: int) -> str:
+    return _local_naive(ts_ms, tz_offset_min).strftime("%Y-%m-%d")
+
+
+def _next_local_midnight_ms(ts_ms: int, tz_offset_min: int) -> int:
+    local = _local_naive(ts_ms, tz_offset_min)
+    midnight = local.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+    return _to_utc_ms(midnight, tz_offset_min)
+
+
+def _period_bounds_ms(tz_offset_min: int, now_ms: int) -> dict[str, tuple[int, int]]:
+    """Start/end of the current week, month and year, in UTC milliseconds.
+
+    `tz_offset_min` follows JavaScript's `Date.getTimezoneOffset()`: minutes to
+    add to local time to get UTC, so UTC-3 is 180. Weeks start on Monday, as
+    everywhere else in the app.
+    """
+    local = _local_naive(now_ms, tz_offset_min)
+    midnight = local.replace(hour=0, minute=0, second=0, microsecond=0)
+    return {
+        "week": (_to_utc_ms(midnight - timedelta(days=midnight.weekday()), tz_offset_min), now_ms),
+        "month": (_to_utc_ms(midnight.replace(day=1), tz_offset_min), now_ms),
+        "year": (_to_utc_ms(midnight.replace(month=1, day=1), tz_offset_min), now_ms),
+    }
+
+
+def _summarize_tag_timesheet(sessions, tz_offset_min: int, now_ms: int) -> dict:
+    """Roll a tag's sessions up into week / month / year figures plus a daily series.
+
+    `sessions` is an iterable of `(start_ms, end_ms_or_None, task_name)`. Open
+    sessions count up to `now_ms`. Sessions are clipped to each period, so one
+    that runs across midnight on a Sunday counts in both weeks, split.
+    """
+    sessions = list(sessions)
+    bounds = _period_bounds_ms(tz_offset_min, now_ms)
+    result: dict = {}
+
+    for period, (start, end) in bounds.items():
+        clipped = []
+        for s_start, s_end, name in sessions:
+            a = max(s_start, start)
+            b = min(s_end if s_end is not None else now_ms, end)
+            if b > a:
+                clipped.append((a, b, name))
+        per_task: dict[str, dict] = {}
+        for a, b, name in clipped:
+            entry = per_task.setdefault(name, {"name": name, "total_ms": 0, "session_count": 0})
+            entry["total_ms"] += b - a
+            entry["session_count"] += 1
+        result[period] = {
+            "start": _local_date_str(start, tz_offset_min),
+            "end": _local_date_str(end, tz_offset_min),
+            "total_ms": sum(b - a for a, b, _ in clipped),
+            "net_ms": _merged_intervals_ms((a, b) for a, b, _ in clipped),
+            "tasks": sorted(per_task.values(), key=lambda t: -t["total_ms"]),
+        }
+
+    # Daily series over the year window, split at the viewer's local midnights
+    year_start, year_end = bounds["year"]
+    by_day: dict[str, list[tuple[int, int]]] = {}
+    for s_start, s_end, _ in sessions:
+        a = max(s_start, year_start)
+        b = min(s_end if s_end is not None else now_ms, year_end)
+        while b > a:
+            piece_end = min(b, _next_local_midnight_ms(a, tz_offset_min))
+            by_day.setdefault(_local_date_str(a, tz_offset_min), []).append((a, piece_end))
+            a = piece_end
+    result["days"] = [
+        {
+            "date": day,
+            "total_ms": sum(b - a for a, b in intervals),
+            "net_ms": _merged_intervals_ms(intervals),
+        }
+        for day, intervals in sorted(by_day.items())
+    ]
+    return result
+
+
+def _tag_from_blob(user_id: int, project_id: str, db) -> tuple[str | None, list[str]]:
+    """The tag's name and the ids of the tasks carrying it.
+
+    Tag membership lives in `user_data.tasks_json` (see `merge_projects_from_blob`);
+    sessions live in the relational tables.
+    """
+    db.execute("SELECT tasks_json FROM user_data WHERE user_id = %s", (user_id,))
+    row = db.fetchone()
+    try:
+        blob = json.loads(row["tasks_json"]) if row and row["tasks_json"] else {}
+    except (json.JSONDecodeError, TypeError):
+        return None, []
+    projects = blob.get("projects")
+    if not isinstance(projects, list):
+        projects = []
+    tag = next(
+        (p for p in projects if isinstance(p, dict) and p.get("id") == project_id),
+        None,
+    )
+    if tag is None:
+        return None, []
+    blob_tasks = blob.get("tasks")
+    if not isinstance(blob_tasks, list):
+        blob_tasks = []
+    task_ids = [
+        t["id"]
+        for t in blob_tasks
+        if isinstance(t, dict) and t.get("id") and t.get("projectId") == project_id
+    ]
+    return tag.get("name"), task_ids
+
+
+def _fetch_tag_timesheet(user_id: int, project_id: str, db, tz_offset_min: int = 0):
+    tag_name, task_ids = _tag_from_blob(user_id, project_id, db)
+    if tag_name is None:
+        raise HTTPException(status_code=404, detail="Timesheet not found")
+
+    now_ms = int(time.time() * 1000)
+    year_start = _period_bounds_ms(tz_offset_min, now_ms)["year"][0]
+    rows = []
+    if task_ids:
+        db.execute("""
+            SELECT s.start_ts, s.end_ts, t.name
+            FROM sessions s
+            JOIN tasks t ON t.id = s.task_id AND t.user_id = s.user_id
+            WHERE s.user_id = %s
+              AND s.task_id = ANY(%s)
+              AND COALESCE(s.end_ts, %s) >= %s
+            ORDER BY s.start_ts
+        """, (user_id, task_ids, now_ms, year_start))
+        rows = [
+            (int(r["start_ts"]), None if r["end_ts"] is None else int(r["end_ts"]), r["name"])
+            for r in db.fetchall()
+        ]
+
+    return {
+        "tag": tag_name,
+        "now": now_ms,
+        "running_count": sum(1 for _, end, _ in rows if end is None),
+        **_summarize_tag_timesheet(rows, tz_offset_min, now_ms),
+    }
+
+
+def tag_share_from_token(token: str, db) -> tuple[int, str]:
+    db.execute("SELECT user_id, project_id FROM tag_shares WHERE token = %s", (token,))
+    row = db.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Timesheet not found")
+    return row["user_id"], row["project_id"]
+
+
+@app.get("/share/tags")
+def share_tags(
+    user_id: Annotated[int, Depends(current_user_id)],
+    db: Annotated[psycopg2.extensions.cursor, Depends(get_db)],
+):
+    db.execute(
+        "SELECT project_id, token FROM tag_shares WHERE user_id = %s ORDER BY created_at",
+        (user_id,),
+    )
+    rows = db.fetchall()
+    shares = []
+    for r in rows:
+        tag_name, _ = _tag_from_blob(user_id, r["project_id"], db)
+        shares.append({"project_id": r["project_id"], "tag": tag_name, "token": r["token"]})
+    return {"shares": shares}
+
+
+@app.post("/share/tags/{project_id}/enable")
+def share_tag_enable(
+    project_id: str,
+    user_id: Annotated[int, Depends(current_user_id)],
+    db: Annotated[psycopg2.extensions.cursor, Depends(get_db)],
+):
+    tag_name, _ = _tag_from_blob(user_id, project_id, db)
+    if tag_name is None:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    db.execute(
+        "SELECT token FROM tag_shares WHERE user_id = %s AND project_id = %s",
+        (user_id, project_id),
+    )
+    row = db.fetchone()
+    if row:
+        return {"project_id": project_id, "tag": tag_name, "token": row["token"]}
+    token = str(uuid_mod.uuid4())
+    db.execute(
+        "INSERT INTO tag_shares (user_id, project_id, token) VALUES (%s, %s, %s)",
+        (user_id, project_id, token),
+    )
+    return {"project_id": project_id, "tag": tag_name, "token": token}
+
+
+@app.post("/share/tags/{project_id}/disable")
+def share_tag_disable(
+    project_id: str,
+    user_id: Annotated[int, Depends(current_user_id)],
+    db: Annotated[psycopg2.extensions.cursor, Depends(get_db)],
+):
+    db.execute(
+        "DELETE FROM tag_shares WHERE user_id = %s AND project_id = %s",
+        (user_id, project_id),
+    )
+    return {"ok": True}
+
+
+@app.get("/timesheet/{token}/data")
+def timesheet_data(
+    token: str,
+    db: Annotated[psycopg2.extensions.cursor, Depends(get_db)],
+    tz: int = 0,
+):
+    user_id, project_id = tag_share_from_token(token, db)
+    return _fetch_tag_timesheet(user_id, project_id, db, tz)
+
+
 def count_today_sessions(user_id: int, db) -> int:
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     db.execute("""
@@ -962,6 +1212,11 @@ def shared_done_page(token: str):
 
 @app.get("/shared/{token}/report")
 def shared_report_page(token: str):
+    return FileResponse("index.html")
+
+
+@app.get("/timesheet/{token}")
+def timesheet_page(token: str):
     return FileResponse("index.html")
 
 
